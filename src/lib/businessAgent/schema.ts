@@ -1,13 +1,20 @@
 import { z } from "zod";
 
 export const businessAgentQuestionIds = [
+  "projectName",
+  "sector",
   "founderContext",
   "idea",
   "problem",
   "targetCustomer",
   "geography",
+  "format",
+  "projectType",
+  "companySize",
   "currentAlternatives",
   "solution",
+  "product",
+  "priceSegment",
   "differentiation",
   "businessModel",
   "price",
@@ -17,6 +24,10 @@ export const businessAgentQuestionIds = [
   "competition",
   "constraints",
   "goal90Days",
+  "mission",
+  "cjmContext",
+  "roadmapContext",
+  "contentChannels",
 ] as const;
 
 export type BusinessAgentQuestionId = (typeof businessAgentQuestionIds)[number];
@@ -30,6 +41,18 @@ export type BusinessAgentQuestion = {
 };
 
 export const businessAgentQuestions: BusinessAgentQuestion[] = [
+  {
+    id: "projectName",
+    label: "Project name",
+    prompt: "What is the brand, company, or personal-brand name?",
+    placeholder: "Example: Gentleman's Choice, Project Vault, personal brand: Ivan Ivanov...",
+  },
+  {
+    id: "sector",
+    label: "Sector",
+    prompt: "What industry or activity area does this project belong to?",
+    placeholder: "Retail, AI SaaS, education, health, fintech, local services...",
+  },
   {
     id: "founderContext",
     label: "Founder context",
@@ -64,6 +87,24 @@ export const businessAgentQuestions: BusinessAgentQuestion[] = [
     placeholder: "Russia, CIS, US SMBs, global English-speaking creators...",
   },
   {
+    id: "format",
+    label: "Format",
+    prompt: "Is the project online, offline, hybrid, marketplace, service, product, or media?",
+    placeholder: "Online SaaS, Telegram bot, offline boutique, hybrid agency...",
+  },
+  {
+    id: "projectType",
+    label: "Project type",
+    prompt: "Is this B2B, B2C, B2B2C, marketplace, personal brand, or community?",
+    placeholder: "B2C, B2B SaaS, personal brand, marketplace, community...",
+  },
+  {
+    id: "companySize",
+    label: "Current size",
+    prompt: "What is the current project scale?",
+    placeholder: "Idea only, solo founder, 2-10, 11-50, existing company...",
+  },
+  {
     id: "currentAlternatives",
     label: "Current alternatives",
     prompt: "What do customers use today instead?",
@@ -75,6 +116,18 @@ export const businessAgentQuestions: BusinessAgentQuestion[] = [
     prompt: "What exactly will the first product do?",
     placeholder: "Core workflow, inputs, output, automation, integrations...",
     required: true,
+  },
+  {
+    id: "product",
+    label: "Product",
+    prompt: "What exactly is sold or delivered to the customer?",
+    placeholder: "Men's clothing, AI strategy file, readiness audit, coaching package...",
+  },
+  {
+    id: "priceSegment",
+    label: "Price segment",
+    prompt: "Which pricing tier or purchasing context should the strategy assume?",
+    placeholder: "Free, low-cost, mid-market, premium, enterprise, fixed-scope...",
   },
   {
     id: "differentiation",
@@ -130,6 +183,30 @@ export const businessAgentQuestions: BusinessAgentQuestion[] = [
     prompt: "What should be true in 90 days?",
     placeholder: "10 paying customers, MVP live, 30 interviews, $3k MRR...",
   },
+  {
+    id: "mission",
+    label: "Mission draft",
+    prompt: "What change should this project create for customers or the market?",
+    placeholder: "Help first-time founders turn vague ideas into a concrete business plan...",
+  },
+  {
+    id: "cjmContext",
+    label: "Customer journey notes",
+    prompt: "What happens before, during, and after the customer buys or uses the product?",
+    placeholder: "Discovery in Telegram, voice interview, report review, first action sprint...",
+  },
+  {
+    id: "roadmapContext",
+    label: "Roadmap notes",
+    prompt: "What milestones, constraints, or launches should the 90-day roadmap include?",
+    placeholder: "MVP bot, transcript quality, template export, first paid pilots...",
+  },
+  {
+    id: "contentChannels",
+    label: "Content channels",
+    prompt: "Where should the founder publish content to attract the first customers?",
+    placeholder: "Telegram, LinkedIn, X, YouTube Shorts, founder communities, newsletter...",
+  },
 ];
 
 export const freeBusinessAgentModels = [
@@ -167,5 +244,11 @@ export type BusinessAgentResponse = {
   model: string;
   freeOnly: true;
   reportMarkdown: string;
+  filledFile: {
+    filename: string;
+    mimeType: "text/markdown";
+    content: string;
+    sections: string[];
+  };
   warnings: string[];
 };

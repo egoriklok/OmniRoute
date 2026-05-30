@@ -69,6 +69,19 @@ export default function BusinessAgentPageClient() {
     setError("");
   };
 
+  const downloadFilledFile = () => {
+    if (!result?.filledFile) return;
+    const blob = new Blob([result.filledFile.content], { type: result.filledFile.mimeType });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = result.filledFile.filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const submit = async () => {
     setLoading(true);
     setError("");
@@ -102,12 +115,14 @@ export default function BusinessAgentPageClient() {
             </Badge>
             <Badge variant="info">Kiro-ready</Badge>
             <Badge variant="primary">Market opportunity</Badge>
+            <Badge variant="default">Telegram voice blueprint</Badge>
           </div>
           <h1 className="text-2xl font-bold text-text-main">Business Agent</h1>
           <p className="mt-2 text-sm leading-6 text-text-muted">
             A free startup consultation workflow that turns founder answers into a practical
-            business diagnosis, market opportunity analysis, and 90-day action plan. It prefers free
-            OmniRoute models and falls back to a local report if a provider is not connected.
+            business diagnosis, filled Project Vault-style strategy file, CJM, roadmap, content
+            plan, market opportunity analysis, and 90-day action plan. It prefers free OmniRoute
+            models and falls back to a local report if a provider is not connected.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -213,15 +228,27 @@ export default function BusinessAgentPageClient() {
               <div>
                 <h2 className="text-lg font-semibold text-text-main">Consultation output</h2>
                 <p className="mt-1 text-sm text-text-muted">
-                  The report uses a YC-style pressure test, GStack-style role review, and bottom-up
-                  market sizing.
+                  The report uses a YC-style pressure test, GStack-style role review, bottom-up
+                  market sizing, and a downloadable filled strategy file.
                 </p>
               </div>
-              {result && (
-                <Badge variant={result.mode === "ai" ? "success" : "warning"}>
-                  {result.mode === "ai" ? "AI" : "Local fallback"}
-                </Badge>
-              )}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {result?.filledFile && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon="download"
+                    onClick={downloadFilledFile}
+                  >
+                    Strategy file
+                  </Button>
+                )}
+                {result && (
+                  <Badge variant={result.mode === "ai" ? "success" : "warning"}>
+                    {result.mode === "ai" ? "AI" : "Local fallback"}
+                  </Badge>
+                )}
+              </div>
             </div>
           </Card>
 

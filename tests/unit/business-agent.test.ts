@@ -13,19 +13,34 @@ const businessAgent = await import("../../src/lib/businessAgent/index.ts");
 const route = await import("../../src/app/api/business-agent/route.ts");
 
 const sampleAnswers = {
+  projectName: "Founder Strategy Bot",
+  sector: "AI SaaS",
   idea: "AI consultant for early-stage founders",
   problem: "Founders cannot turn rough ideas into a market-backed plan",
   targetCustomer: "Solo founders before first revenue",
+  format: "Telegram voice bot",
+  projectType: "B2C subscription",
   solution: "A guided interview that produces a startup strategy",
+  product: "Filled business strategy file",
+  priceSegment: "Low-cost subscription",
   marketSize: "50000 reachable founders",
   price: "$49/month",
   goToMarket: "Founder-led communities and Telegram channels",
+  mission: "Help founders turn vague ideas into validated action plans",
+  cjmContext: "Voice interview, report review, first action sprint",
+  roadmapContext: "MVP bot, markdown export, first pilots",
+  contentChannels: "Telegram, LinkedIn",
 };
 
 type BusinessAgentRouteBody = {
   success?: boolean;
   mode?: string;
   reportMarkdown?: string;
+  filledFile?: {
+    filename?: string;
+    content?: string;
+    sections?: string[];
+  };
   warnings?: string[];
   error?: {
     message?: string;
@@ -57,6 +72,11 @@ test("local fallback report includes startup advice and market sizing", () => {
   assert.match(report, /Market Opportunity/);
   assert.match(report, /TAM/);
   assert.match(report, /\$29\.4M/);
+  assert.match(report, /Filled Project Vault Brief/);
+  assert.match(report, /Mission and Product Description/);
+  assert.match(report, /CJM/);
+  assert.match(report, /Roadmap/);
+  assert.match(report, /Content Plan/);
   assert.match(report, /90-Day Action Plan/);
 });
 
@@ -70,7 +90,34 @@ test("business agent prompt applies market-opportunity and GStack-style review",
   assert.equal(messages.length, 2);
   assert.match(messages[0].content, /GStack-style multi-role review/);
   assert.match(messages[0].content, /TAM, SAM, SOM/);
+  assert.match(messages[0].content, /Project Vault brief structure/);
+  assert.match(messages[0].content, /CJM/);
   assert.match(messages[1].content, /AI consultant for early-stage founders/);
+});
+
+test("business agent builds a downloadable filled strategy file", () => {
+  const report = businessAgent.buildLocalBusinessConsultation({
+    answers: sampleAnswers,
+    language: "en",
+    model: "kr/claude-sonnet-4.5",
+  });
+  const filledFile = businessAgent.buildBusinessAgentFilledFile(
+    {
+      answers: sampleAnswers,
+      language: "en",
+      model: "kr/claude-sonnet-4.5",
+    },
+    report
+  );
+
+  assert.match(filledFile.filename, /strategy-file\.md$/);
+  assert.match(filledFile.content, /Filled Project Vault brief/);
+  assert.match(filledFile.content, /Product description/);
+  assert.match(filledFile.content, /Mission/);
+  assert.match(filledFile.content, /CJM/);
+  assert.match(filledFile.content, /Roadmap/);
+  assert.match(filledFile.content, /Content plan/);
+  assert.ok(filledFile.sections.includes("Target audience"));
 });
 
 test("business agent route rejects paid models before provider calls", async () => {
@@ -129,6 +176,8 @@ test("business agent route falls back locally when the free provider is unavaila
     assert.equal(body.success, true);
     assert.equal(body.mode, "local-fallback");
     assert.match(body.reportMarkdown, /Free Business Agent Consultation/);
+    assert.match(body.filledFile?.content, /Filled Project Vault brief/);
+    assert.match(body.filledFile?.content, /Content plan/);
     assert.match(body.warnings[0], /Kiro not connected/);
   } finally {
     globalThis.fetch = originalFetch;

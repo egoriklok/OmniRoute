@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import {
+  buildBusinessAgentFilledFile,
   buildBusinessAgentMessages,
   buildLocalBusinessConsultation,
   businessAgentRequestSchema,
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
       model: input.model,
       freeOnly: true,
       reportMarkdown,
+      filledFile: buildBusinessAgentFilledFile(input, reportMarkdown),
       warnings,
     };
     return NextResponse.json(response);
@@ -117,12 +119,14 @@ export async function POST(request: Request) {
         error
       )}`
     );
+    const reportMarkdown = buildLocalBusinessConsultation(input);
     const response: BusinessAgentResponse = {
       success: true,
       mode: "local-fallback",
       model: input.model,
       freeOnly: true,
-      reportMarkdown: buildLocalBusinessConsultation(input),
+      reportMarkdown,
+      filledFile: buildBusinessAgentFilledFile(input, reportMarkdown),
       warnings,
     };
     return NextResponse.json(response);

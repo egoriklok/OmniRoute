@@ -98,6 +98,255 @@ function buildRisks(answers: AnswerMap) {
   return risks.join("\n");
 }
 
+function cell(value: string) {
+  return value.replace(/\|/g, "\\|").replace(/\n+/g, " ");
+}
+
+function tableRow(cells: string[]) {
+  return `| ${cells.map(cell).join(" |")} |`;
+}
+
+function briefBlock(answers: AnswerMap, language: "ru" | "en") {
+  if (language === "ru") {
+    return [
+      tableRow(["Поле", "Ответ"]),
+      tableRow(["---", "---"]),
+      tableRow(["Название", answer(answers, "projectName")]),
+      tableRow(["Сфера деятельности", answer(answers, "sector")]),
+      tableRow(["География", answer(answers, "geography")]),
+      tableRow(["Формат", answer(answers, "format")]),
+      tableRow(["Тип проекта", answer(answers, "projectType")]),
+      tableRow(["Размер", answer(answers, "companySize")]),
+      tableRow(["Продукт", answer(answers, "product", answer(answers, "solution"))]),
+      tableRow(["Ценовой сегмент", answer(answers, "priceSegment", answer(answers, "price"))]),
+      tableRow(["Какие задачи решаете", answer(answers, "problem")]),
+      tableRow(["Целевая аудитория", answer(answers, "targetCustomer")]),
+    ].join("\n");
+  }
+
+  return [
+    tableRow(["Field", "Answer"]),
+    tableRow(["---", "---"]),
+    tableRow(["Name", answer(answers, "projectName")]),
+    tableRow(["Activity sector", answer(answers, "sector")]),
+    tableRow(["Geography", answer(answers, "geography")]),
+    tableRow(["Format", answer(answers, "format")]),
+    tableRow(["Project type", answer(answers, "projectType")]),
+    tableRow(["Current size", answer(answers, "companySize")]),
+    tableRow(["Product", answer(answers, "product", answer(answers, "solution"))]),
+    tableRow(["Price segment", answer(answers, "priceSegment", answer(answers, "price"))]),
+    tableRow(["Solved tasks", answer(answers, "problem")]),
+    tableRow(["Target audience", answer(answers, "targetCustomer")]),
+  ].join("\n");
+}
+
+function missionBlock(answers: AnswerMap, language: "ru" | "en") {
+  const mission = answer(answers, "mission", "");
+  if (mission) return mission;
+  if (language === "ru") {
+    return `Помочь сегменту "${answer(answers, "targetCustomer")}" решить проблему "${answer(
+      answers,
+      "problem"
+    )}" через продукт "${answer(answers, "solution")}".`;
+  }
+  return `Help ${answer(answers, "targetCustomer")} solve "${answer(
+    answers,
+    "problem"
+  )}" through "${answer(answers, "solution")}".`;
+}
+
+function cjmBlock(answers: AnswerMap, language: "ru" | "en") {
+  if (language === "ru") {
+    return [
+      tableRow(["Этап CJM", "Состояние клиента", "Что спрашивает бот", "Артефакт", "Метрика"]),
+      tableRow(["---", "---", "---", "---", "---"]),
+      tableRow([
+        "Осознание",
+        "Клиент чувствует боль, но решение еще не выбрано.",
+        "Что случилось и почему это важно сейчас?",
+        "Формулировка проблемы",
+        "Четкий срочный триггер",
+      ]),
+      tableRow([
+        "Сравнение",
+        "Клиент смотрит альтернативы.",
+        `Что используете сейчас: ${answer(answers, "currentAlternatives")}?`,
+        "Карта альтернатив",
+        "Названы реальные заменители",
+      ]),
+      tableRow([
+        "Решение",
+        "Клиент оценивает доверие, цену и риск.",
+        "Какой результат нужен, чтобы попробовать?",
+        "Оффер и возражения",
+        "Готовность к пилоту или оплате",
+      ]),
+      tableRow([
+        "Активация",
+        "Клиент получает первый полезный результат.",
+        "Какой файл или план должен быть полезен сегодня?",
+        "Заполненный strategy file",
+        "Первое действие выполнено",
+      ]),
+      tableRow([
+        "Повтор",
+        "Клиент возвращается за следующим шагом.",
+        "Что изменилось после первого спринта?",
+        "Обновление roadmap",
+        "Повторное использование или рекомендация",
+      ]),
+    ].join("\n");
+  }
+
+  return [
+    tableRow(["CJM stage", "Customer state", "Bot question focus", "Artifact", "Success signal"]),
+    tableRow(["---", "---", "---", "---", "---"]),
+    tableRow([
+      "Awareness",
+      "Customer notices the pain.",
+      "What happened and why now?",
+      "Problem narrative",
+      "Urgent trigger",
+    ]),
+    tableRow([
+      "Comparison",
+      "Customer compares alternatives.",
+      `What do you use today: ${answer(answers, "currentAlternatives")}?`,
+      "Alternatives map",
+      "Named substitutes",
+    ]),
+    tableRow([
+      "Decision",
+      "Customer judges trust, price, and risk.",
+      "What outcome would make this worth trying?",
+      "Offer and objections",
+      "Pilot or payment intent",
+    ]),
+    tableRow([
+      "Activation",
+      "Customer receives first value.",
+      "What file or plan must be useful today?",
+      "Filled strategy file",
+      "First action completed",
+    ]),
+    tableRow([
+      "Repeat",
+      "Customer returns for the next step.",
+      "What changed after the first sprint?",
+      "Roadmap update",
+      "Repeat use or referral",
+    ]),
+  ].join("\n");
+}
+
+function roadmapBlock(answers: AnswerMap, language: "ru" | "en") {
+  if (language === "ru") {
+    return [
+      tableRow(["Период", "Цель", "Действия", "Доказательство"]),
+      tableRow(["---", "---", "---", "---"]),
+      tableRow([
+        "0-7 дней",
+        "Сузить ICP и боль.",
+        `Провести 5-10 интервью с "${answer(answers, "targetCustomer")}".`,
+        "3 повторяющихся паттерна боли.",
+      ]),
+      tableRow([
+        "8-30 дней",
+        "Собрать минимально полезный продукт.",
+        answer(answers, "roadmapContext", answer(answers, "solution")),
+        "Рабочий демо-сценарий или ручная услуга.",
+      ]),
+      tableRow([
+        "31-60 дней",
+        "Проверить дистрибуцию.",
+        answer(answers, "goToMarket"),
+        "Квалифицированные разговоры каждую неделю.",
+      ]),
+      tableRow([
+        "61-90 дней",
+        "Проверить оплату и удержание.",
+        answer(answers, "goal90Days"),
+        "Оплаченные пилоты или честные причины отказа.",
+      ]),
+    ].join("\n");
+  }
+
+  return [
+    tableRow(["Timeframe", "Goal", "Actions", "Evidence gate"]),
+    tableRow(["---", "---", "---", "---"]),
+    tableRow([
+      "Days 0-7",
+      "Tighten ICP and problem.",
+      `Interview 5-10 ${answer(answers, "targetCustomer")}.`,
+      "3 repeated pain patterns.",
+    ]),
+    tableRow([
+      "Days 8-30",
+      "Build the smallest useful product.",
+      answer(answers, "roadmapContext", answer(answers, "solution")),
+      "Working demo or delivered manual service.",
+    ]),
+    tableRow([
+      "Days 31-60",
+      "Prove distribution.",
+      answer(answers, "goToMarket"),
+      "Qualified conversations every week.",
+    ]),
+    tableRow([
+      "Days 61-90",
+      "Validate payment and retention.",
+      answer(answers, "goal90Days"),
+      "Paid pilots or honest rejection reasons.",
+    ]),
+  ].join("\n");
+}
+
+function contentPlanBlock(answers: AnswerMap, language: "ru" | "en") {
+  const rawChannels = answer(answers, "contentChannels", answer(answers, "goToMarket", ""));
+  const channels = rawChannels
+    .split(/[,;\n]/)
+    .map((channel) => channel.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+  const selectedChannels = channels.length
+    ? channels
+    : ["Telegram", "LinkedIn", "Founder communities"];
+
+  if (language === "ru") {
+    return [
+      tableRow(["Канал", "Тема", "Ритм", "CTA"]),
+      tableRow(["---", "---", "---", "---"]),
+      ...selectedChannels.map((channel) =>
+        tableRow([
+          channel,
+          `Показывать цену проблемы "${answer(answers, "problem")}" и результат продукта "${answer(
+            answers,
+            "solution"
+          )}".`,
+          "2-3 публикации или демо в неделю",
+          "Приглашение на бесплатную диагностику или пилот.",
+        ])
+      ),
+    ].join("\n");
+  }
+
+  return [
+    tableRow(["Channel", "Topic", "Cadence", "CTA"]),
+    tableRow(["---", "---", "---", "---"]),
+    ...selectedChannels.map((channel) =>
+      tableRow([
+        channel,
+        `Show the cost of "${answer(answers, "problem")}" and the result of "${answer(
+          answers,
+          "solution"
+        )}".`,
+        "2-3 posts or demos per week",
+        "Invite to a free diagnostic interview or pilot.",
+      ])
+    ),
+  ].join("\n");
+}
+
 export function buildLocalBusinessConsultation(input: BusinessAgentRequest): string {
   const answers = input.answers;
   const completeness = scoreCompleteness(answers);
@@ -114,6 +363,39 @@ export function buildLocalBusinessConsultation(input: BusinessAgentRequest): str
       "",
       "## Market Opportunity",
       marketSizingBlock(answers),
+      "",
+      "## Filled Project Vault Brief",
+      briefBlock(answers, "en"),
+      "",
+      "## Mission and Product Description",
+      missionBlock(answers, "en"),
+      "",
+      `Positioning: ${answer(answers, "idea")}`,
+      `Primary offer: ${answer(answers, "solution")}`,
+      `Not the offer: unproven market certainty, paid-model dependency, or generic advice without a next action.`,
+      "",
+      "## Target Audience and Positioning",
+      [
+        tableRow(["Dimension", "Value"]),
+        tableRow(["---", "---"]),
+        tableRow(["Primary ICP", answer(answers, "targetCustomer")]),
+        tableRow(["Pain", answer(answers, "problem")]),
+        tableRow(["Current alternative", answer(answers, "currentAlternatives")]),
+        tableRow(["Buying context", answer(answers, "priceSegment", answer(answers, "price"))]),
+        tableRow([
+          "Proof needed",
+          answer(answers, "traction", "Interviews, pilots, testimonials, or public demos."),
+        ]),
+      ].join("\n"),
+      "",
+      "## CJM",
+      cjmBlock(answers, "en"),
+      "",
+      "## Roadmap",
+      roadmapBlock(answers, "en"),
+      "",
+      "## Content Plan",
+      contentPlanBlock(answers, "en"),
       "",
       "## Recommendation",
       `Start with a narrow wedge: ${answer(answers, "targetCustomer")}. Sell the smallest useful version of "${answer(
@@ -166,6 +448,39 @@ export function buildLocalBusinessConsultation(input: BusinessAgentRequest): str
         "Missing data: add a numerical customer-count assumption and price assumption to unlock automatic bottom-up math.",
         "Не хватает данных: добавьте числовую оценку количества клиентов и цены, чтобы получить автоматический расчет снизу вверх."
       ),
+    "",
+    "## Заполненный Project Vault бриф",
+    briefBlock(answers, "ru"),
+    "",
+    "## Миссия и описание продукта",
+    missionBlock(answers, "ru"),
+    "",
+    `Позиционирование: ${answer(answers, "idea", "Идея не описана.")}`,
+    `Основной оффер: ${answer(answers, "solution")}`,
+    "Не является оффером: недоказанная уверенность в рынке, зависимость от платных моделей или общие советы без следующего действия.",
+    "",
+    "## Целевая аудитория и позиционирование",
+    [
+      tableRow(["Измерение", "Значение"]),
+      tableRow(["---", "---"]),
+      tableRow(["Первичный ICP", answer(answers, "targetCustomer")]),
+      tableRow(["Боль", answer(answers, "problem")]),
+      tableRow(["Текущая альтернатива", answer(answers, "currentAlternatives")]),
+      tableRow(["Контекст покупки", answer(answers, "priceSegment", answer(answers, "price"))]),
+      tableRow([
+        "Нужное доказательство",
+        answer(answers, "traction", "Интервью, пилоты, отзывы или публичные демо."),
+      ]),
+    ].join("\n"),
+    "",
+    "## CJM",
+    cjmBlock(answers, "ru"),
+    "",
+    "## Roadmap",
+    roadmapBlock(answers, "ru"),
+    "",
+    "## Контент-план",
+    contentPlanBlock(answers, "ru"),
     "",
     "## Рекомендация",
     `Начинайте с узкого клина: ${answer(
