@@ -5,6 +5,11 @@ import {
   type BusinessAgentQuestionId,
   type BusinessAgentRequest,
 } from "./schema";
+import {
+  buildDeterministicBusinessAgentMemory,
+  formatBusinessAgentProjectMemory,
+  type BusinessAgentProjectMemory,
+} from "./adaptiveInterview";
 
 export type BusinessAgentInterviewChannel = "dashboard" | "telegram-text" | "telegram-voice";
 export type BusinessAgentInterviewStatus = "interviewing" | "reviewing" | "generating" | "complete";
@@ -29,6 +34,7 @@ export type BusinessAgentInterviewSession = {
   updatedAt: string;
   lastQuestionId?: BusinessAgentQuestionId;
   processedTelegramUpdateIds?: number[];
+  memory?: BusinessAgentProjectMemory;
 };
 
 export type BusinessAgentInterviewInput = {
@@ -142,6 +148,7 @@ export function createBusinessAgentInterviewSession(input: {
     model: input.model || freeBusinessAgentModels[0],
     answers: {},
     transcript: [],
+    memory: {},
     status: "interviewing",
     createdAt,
     updatedAt: createdAt,
@@ -179,6 +186,9 @@ export function buildBusinessAgentRequestFromSession(
     answers: session.answers,
     language: session.language,
     model: session.model,
+    projectMemory: formatBusinessAgentProjectMemory(
+      session.memory || buildDeterministicBusinessAgentMemory(session)
+    ),
   };
 }
 
@@ -198,7 +208,10 @@ export function recordBusinessAgentInterviewAnswer(
     },
     lastQuestionId: undefined,
   };
-  return appendTranscript(withAnswer, { source, questionId, text: value, receivedAt });
+  return {
+    ...appendTranscript(withAnswer, { source, questionId, text: value, receivedAt }),
+    memory: buildDeterministicBusinessAgentMemory(withAnswer),
+  };
 }
 
 export function buildBusinessAgentInterviewBrief(session: BusinessAgentInterviewSession) {

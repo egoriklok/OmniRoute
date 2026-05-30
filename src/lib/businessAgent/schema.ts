@@ -229,6 +229,7 @@ export const businessAgentRequestSchema = z.object({
   answers: z.partialRecord(z.enum(businessAgentQuestionIds), z.string().max(4000)).default({}),
   language: z.enum(["ru", "en"]).default("ru"),
   model: z.string().trim().min(1).max(160).default("kr/claude-sonnet-4.5"),
+  projectMemory: z.string().trim().max(8000).optional(),
 });
 
 export type BusinessAgentRequest = z.infer<typeof businessAgentRequestSchema>;

@@ -63,21 +63,25 @@ flowchart TD
   Voice --> Adapter["Telegram adapter"]
   Adapter --> STT{"Voice?"}
   STT -->|text| State["Interview state"]
-  STT -->|voice| LocalSTT["Local/free STT: Qwen ASR or local endpoint"]
-  LocalSTT --> State
+  STT -->|voice| BetterSTT["STT: Whisper Large v3 or local endpoint"]
+  BetterSTT --> State
   State --> Questions["Business Agent question schema"]
-  Questions --> Missing["Find missing fields and ask follow-up"]
+  Questions --> Memory["Temporary project memory"]
+  Memory --> Adaptive["LLM adaptive question"]
+  Adaptive --> Missing["Ask one deeper follow-up"]
   Missing --> Complete{"Minimum brief complete?"}
   Complete -->|no| User
   Complete -->|yes| API["/api/business-agent/telegram"]
-  API --> FreeModel["Business Agent local/free generator"]
+  API --> FreeModel["Business Agent LLM generator"]
   API --> Fallback["Local fallback report"]
   FreeModel --> File["Filled strategy markdown file"]
   Fallback --> File
   File --> TelegramFile["Send document back in Telegram"]
 ```
 
-No paid STT, paid LLM, payment rail, or hosted database is required for the default path.
+No payment rail or hosted database is required. The default STT model is now `groq/whisper-large-v3`
+for better Russian and English recognition quality; use `BUSINESS_AGENT_STT_ENDPOINT` if you want a
+fully local STT engine.
 
 ## Runtime Setup
 
@@ -87,10 +91,11 @@ Required environment variables:
 - `BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET`: secret passed to Telegram `setWebhook` and checked via
   `x-telegram-bot-api-secret-token`. The webhook fails closed when this is not configured.
 
-Optional local/free voice transcription:
+Voice transcription:
 
-- `BUSINESS_AGENT_STT_MODEL`: OmniRoute audio transcription model. Defaults to `qwen/qwen3-asr`,
-  which targets the local Qwen-compatible endpoint at `localhost:8000`.
+- `BUSINESS_AGENT_STT_MODEL`: OmniRoute audio transcription model. Defaults to
+  `groq/whisper-large-v3` for better voice accuracy than the prior Qwen ASR default.
+- `GROQ_API_KEY`: required for the default Groq Whisper route.
 - `BUSINESS_AGENT_STT_ENDPOINT`: override with a local HTTP endpoint that accepts multipart `file`
   and returns JSON with `text` or `transcript`.
 - `BUSINESS_AGENT_ALLOW_REMOTE_STT=1`: only set this if you intentionally use a remote STT endpoint.
@@ -166,9 +171,11 @@ The implementation entrypoints are:
 - `saveBusinessAgentTelegramSession(session)`
 - `transcribeTelegramBusinessVoice({ botToken, fileId })`
 
-`applyBusinessAgentInterviewTurn` accepts either text or a `voiceTranscript`. A Telegram adapter only
-needs to transcribe the OGG voice message through a local/free STT engine, pass the transcript into
-this function, and persist the returned session.
+`applyBusinessAgentInterviewTurn` accepts either text or a `voiceTranscript`. The Telegram route
+stores temporary project memory in the session while the interview is active. After each founder
+answer, Business Agent asks the free LLM route to update that memory and rewrite the next missing
+question using GStack and Startup review lenses. If the LLM is unavailable, the deterministic
+question schema is used as a fallback.
 
 `extractTelegramBusinessAgentInput` performs the Telegram-specific part: chat id extraction, command
 parsing, voice file detection, and signaling when local STT is needed.
@@ -188,14 +195,16 @@ parsing, voice file detection, and signaling when local STT is needed.
 3. Text and commands are parsed directly.
 4. Voice messages are downloaded through Telegram `getFile`.
 5. If `BUSINESS_AGENT_STT_ENDPOINT` is set, the file is sent there.
-6. Otherwise OmniRoute uses `BUSINESS_AGENT_STT_MODEL`, defaulting to local/free `qwen/qwen3-asr`.
+6. Otherwise OmniRoute uses `BUSINESS_AGENT_STT_MODEL`, defaulting to `groq/whisper-large-v3`.
 7. Sessions are persisted in SQLite `key_value` under `businessAgentTelegramSessions` after the
    Telegram reply succeeds.
 8. Processed Telegram `update_id` values are stored with the session so retried updates do not
    advance the interview twice.
 9. The interview state machine asks one missing question at a time.
-10. `/generate` builds the Business Agent local fallback report and filled markdown strategy file.
-11. The route sends the reply text and then sends the strategy file back as a Telegram document.
+10. A temporary project memory is updated from answers and LLM output during the active interview.
+11. `/generate` uses the Business Agent LLM route to build the report and filled markdown strategy
+    file, with local fallback only if the free model is unavailable.
+12. The route sends the reply text and then sends the strategy file back as a Telegram document.
 
 ## Acceptance Criteria
 

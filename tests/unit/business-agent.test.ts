@@ -11,6 +11,7 @@ const originalTelegramWebhookSecret = process.env.BUSINESS_AGENT_TELEGRAM_WEBHOO
 const originalSttEndpoint = process.env.BUSINESS_AGENT_STT_ENDPOINT;
 const originalSttModel = process.env.BUSINESS_AGENT_STT_MODEL;
 const originalRequireApiKey = process.env.REQUIRE_API_KEY;
+const originalGroqApiKey = process.env.GROQ_API_KEY;
 process.env.DATA_DIR = tmpDir;
 
 const core = await import("../../src/lib/db/core.ts");
@@ -72,6 +73,7 @@ test.after(() => {
   restoreEnv("BUSINESS_AGENT_STT_ENDPOINT", originalSttEndpoint);
   restoreEnv("BUSINESS_AGENT_STT_MODEL", originalSttModel);
   restoreEnv("REQUIRE_API_KEY", originalRequireApiKey);
+  restoreEnv("GROQ_API_KEY", originalGroqApiKey);
   businessAgentFreeModel.setBusinessAgentChatExecutorForTest(null);
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -117,11 +119,50 @@ test("business agent prompt applies market-opportunity and GStack-style review",
   });
 
   assert.equal(messages.length, 2);
-  assert.match(messages[0].content, /GStack-style multi-role review/);
+  assert.match(messages[0].content, /GStack skill/);
+  assert.match(messages[0].content, /Startup skill/);
   assert.match(messages[0].content, /TAM, SAM, SOM/);
   assert.match(messages[0].content, /Project Vault brief structure/);
   assert.match(messages[0].content, /CJM/);
   assert.match(messages[1].content, /AI consultant for early-stage founders/);
+});
+
+test("business agent adaptive interview builds temporary memory prompts", () => {
+  const session = businessAgent.recordBusinessAgentInterviewAnswer(
+    businessAgent.createBusinessAgentInterviewSession({
+      id: "adaptive-memory",
+      channel: "telegram-voice",
+      language: "en",
+    }),
+    "idea",
+    "AI consultant that turns rough startup ideas into a strategy file"
+  );
+  const nextQuestion = businessAgent.businessAgentQuestions.find(
+    (question) => question.id === "problem"
+  );
+  assert.ok(nextQuestion);
+
+  const messages = businessAgent.buildBusinessAgentAdaptiveQuestionMessages(session, nextQuestion);
+  assert.match(messages[0].content, /temporary memory/);
+  assert.match(messages[0].content, /GStack skill/);
+  assert.match(messages[0].content, /Startup skill/);
+  assert.match(messages[1].content, /AI consultant/);
+
+  const adaptive = businessAgent.parseBusinessAgentAdaptiveQuestion(
+    JSON.stringify({
+      memory: {
+        project: "Founder strategy bot",
+        customer: "Solo founders",
+        assumptions: ["Founders will answer by voice"],
+      },
+      question: "What painful moment makes the founder need this right now?",
+    }),
+    businessAgent.buildDeterministicBusinessAgentMemory(session),
+    "Fallback question"
+  );
+
+  assert.equal(adaptive.memory.project, "Founder strategy bot");
+  assert.equal(adaptive.question, "What painful moment makes the founder need this right now?");
 });
 
 test("business agent builds a downloadable filled strategy file", () => {
@@ -407,6 +448,26 @@ test("business agent telegram webhook ignores retried reset updates", async () =
       headers: { "content-type": "application/json" },
     });
   }) as typeof fetch;
+  businessAgentFreeModel.setBusinessAgentChatExecutorForTest(async () => {
+    return new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                memory: { project: "New idea after reset" },
+                question: "Which problem does this reset idea solve first?",
+              }),
+            },
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }
+    );
+  });
 
   const resetBody = {
     update_id: 1003,
@@ -471,9 +532,104 @@ test("business agent telegram webhook ignores retried reset updates", async () =
     assert.deepEqual(session?.processedTelegramUpdateIds, [1003, 1004]);
   } finally {
     globalThis.fetch = originalFetch;
+    businessAgentFreeModel.setBusinessAgentChatExecutorForTest(null);
     restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
     restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
     sessionStore.deleteBusinessAgentTelegramSession("781");
+  }
+});
+
+test("business agent telegram webhook stores temporary memory from adaptive LLM questions", async () => {
+  const originalFetch = globalThis.fetch;
+  process.env.TELEGRAM_BOT_TOKEN = "test-token";
+  process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET = "secret";
+
+  const seededSession = {
+    ...businessAgent.createBusinessAgentInterviewSession({
+      id: "783",
+      channel: "telegram-text",
+      language: "en",
+    }),
+    lastQuestionId: "idea" as const,
+  };
+  sessionStore.saveBusinessAgentTelegramSession(seededSession);
+
+  const fetchCalls: string[] = [];
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    fetchCalls.push(String(url));
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  businessAgentFreeModel.setBusinessAgentChatExecutorForTest(async (chatRequest) => {
+    const body = await chatRequest.json();
+    assert.equal(body.model, "kr/claude-sonnet-4.5");
+    assert.match(body.messages[0].content, /AI Agent Business/);
+    assert.match(body.messages[0].content, /GStack skill/);
+    assert.match(body.messages[0].content, /Startup skill/);
+    assert.match(body.messages[1].content, /Next required field/);
+    return new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                memory: {
+                  project: "Founder Strategy Bot",
+                  customer: "Solo founders before first revenue",
+                  problem: "Ideas stay vague",
+                  assumptions: ["Voice answers are enough to build a first brief"],
+                },
+                question:
+                  "Where exactly does the founder feel the pain: before choosing the niche, writing the offer, or finding first customers?",
+              }),
+            },
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }
+    );
+  });
+
+  try {
+    const response = await telegramRoute.POST(
+      new Request("http://localhost/api/business-agent/telegram", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-telegram-bot-api-secret-token": "secret",
+        },
+        body: JSON.stringify({
+          update_id: 1006,
+          message: {
+            chat: { id: 783 },
+            date: 1780135380,
+            text: "AI bot that interviews founders and creates a strategy file",
+          },
+        }),
+      })
+    );
+    const session = sessionStore.getBusinessAgentTelegramSession("783");
+
+    assert.equal(response.status, 200);
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(
+      session?.answers.idea,
+      "AI bot that interviews founders and creates a strategy file"
+    );
+    assert.equal(session?.memory?.project, "Founder Strategy Bot");
+    assert.match(session?.transcript.at(-1)?.text || "", /Where exactly/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    businessAgentFreeModel.setBusinessAgentChatExecutorForTest(null);
+    restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
+    restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
+    sessionStore.deleteBusinessAgentTelegramSession("783");
   }
 });
 
@@ -619,10 +775,11 @@ test("business agent telegram webhook persists only after reply delivery", async
   }
 });
 
-test("business agent voice transcription defaults to local qwen ASR", async () => {
+test("business agent voice transcription defaults to Whisper Large v3", async () => {
   const originalFetch = globalThis.fetch;
   delete process.env.BUSINESS_AGENT_STT_ENDPOINT;
   delete process.env.BUSINESS_AGENT_STT_MODEL;
+  process.env.GROQ_API_KEY = "test-groq-key";
 
   const fetchCalls: string[] = [];
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -643,10 +800,12 @@ test("business agent voice transcription defaults to local qwen ASR", async () =
       });
     }
 
-    if (requestUrl === "http://localhost:8000/v1/audio/transcriptions") {
+    if (requestUrl === "https://api.groq.com/openai/v1/audio/transcriptions") {
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get("authorization"), "Bearer test-groq-key");
       const body = init?.body;
       assert.ok(body instanceof FormData);
-      assert.equal(body.get("model"), "qwen3-asr");
+      assert.equal(body.get("model"), "whisper-large-v3");
       return new Response(JSON.stringify({ text: "Founder idea transcript" }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -666,12 +825,13 @@ test("business agent voice transcription defaults to local qwen ASR", async () =
     assert.deepEqual(fetchCalls, [
       "https://api.telegram.org/bottest-token/getFile?file_id=voice-file-id",
       "https://api.telegram.org/file/bottest-token/voice/file.ogg",
-      "http://localhost:8000/v1/audio/transcriptions",
+      "https://api.groq.com/openai/v1/audio/transcriptions",
     ]);
   } finally {
     globalThis.fetch = originalFetch;
     restoreEnv("BUSINESS_AGENT_STT_ENDPOINT", originalSttEndpoint);
     restoreEnv("BUSINESS_AGENT_STT_MODEL", originalSttModel);
+    restoreEnv("GROQ_API_KEY", originalGroqApiKey);
   }
 });
 

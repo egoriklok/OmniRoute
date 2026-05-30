@@ -19,7 +19,23 @@ function configuredLocalSttEndpoint() {
 }
 
 function configuredInternalSttModel() {
-  return process.env.BUSINESS_AGENT_STT_MODEL?.trim() || "qwen/qwen3-asr";
+  return process.env.BUSINESS_AGENT_STT_MODEL?.trim() || "groq/whisper-large-v3";
+}
+
+function providerFromModel(model: string) {
+  const [provider] = model.split("/");
+  return provider || "";
+}
+
+function credentialsForModel(model: string) {
+  const provider = providerFromModel(model);
+  if (provider === "groq") return { apiKey: process.env.GROQ_API_KEY };
+  if (provider === "openai") return { apiKey: process.env.OPENAI_API_KEY };
+  if (provider === "deepgram") return { apiKey: process.env.DEEPGRAM_API_KEY };
+  if (provider === "assemblyai") return { apiKey: process.env.ASSEMBLYAI_API_KEY };
+  if (provider === "huggingface") return { apiKey: process.env.HUGGINGFACE_API_KEY };
+  if (provider === "nvidia") return { apiKey: process.env.NVIDIA_API_KEY };
+  return null;
 }
 
 function assertLocalSttEndpoint(endpoint: string) {
@@ -82,13 +98,14 @@ async function transcribeWithLocalEndpoint(audio: { bytes: ArrayBuffer; filename
 }
 
 async function transcribeWithInternalAudioHandler(audio: { bytes: ArrayBuffer; filename: string }) {
+  const model = configuredInternalSttModel();
   const formData = new FormData();
-  formData.set("model", configuredInternalSttModel());
+  formData.set("model", model);
   formData.set("file", new Blob([audio.bytes], { type: "audio/ogg" }), audio.filename);
 
   const response = await handleAudioTranscription({
     formData,
-    credentials: null,
+    credentials: credentialsForModel(model),
   });
   const data = (await response.json().catch(() => null)) as SttJsonResponse | null;
   if (!response.ok) {

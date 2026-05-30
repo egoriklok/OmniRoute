@@ -3,10 +3,15 @@ import {
   applyBusinessAgentInterviewTurn,
   buildLocalBusinessConsultation,
   buildBusinessAgentFilledFile,
+  buildBusinessAgentAdaptiveQuestionMessages,
+  buildDeterministicBusinessAgentMemory,
   buildTelegramBusinessAgentDocument,
   createBusinessAgentInterviewSession,
   extractTelegramBusinessAgentInput,
+  formatBusinessAgentProjectMemory,
+  parseBusinessAgentAdaptiveQuestion,
   type BusinessAgentResponse,
+  type BusinessAgentInterviewTurn,
   type TelegramBusinessAgentUpdate,
 } from "@/lib/businessAgent";
 import {
@@ -15,6 +20,10 @@ import {
   markBusinessAgentTelegramUpdateProcessed,
   saveBusinessAgentTelegramSession,
 } from "@/lib/businessAgent/sessionStore";
+import {
+  callBusinessAgentFreeModel,
+  callBusinessAgentFreeModelMessages,
+} from "@/lib/businessAgent/freeModel";
 import { transcribeTelegramBusinessVoice } from "@/lib/businessAgent/voiceTranscription";
 
 export const runtime = "nodejs";
@@ -88,20 +97,93 @@ async function sendTelegramDocument(chatId: string, response: BusinessAgentRespo
   await callTelegram("sendDocument", formData);
 }
 
-function buildLocalTelegramBusinessResponse(
-  request: ReturnType<typeof applyBusinessAgentInterviewTurn>["request"]
-): BusinessAgentResponse {
-  if (!request) throw new Error("Business Agent request is missing");
-  const reportMarkdown = buildLocalBusinessConsultation(request);
-  return {
-    success: true,
-    mode: "local-fallback",
-    model: request.model,
-    freeOnly: true,
-    reportMarkdown,
-    filledFile: buildBusinessAgentFilledFile(request, reportMarkdown),
-    warnings: ["Generated locally from the Telegram interview without paid providers."],
-  };
+async function buildTelegramBusinessResponse(
+  sourceRequest: Request,
+  turn: BusinessAgentInterviewTurn
+): Promise<BusinessAgentResponse> {
+  if (!turn.request) throw new Error("Business Agent request is missing");
+  try {
+    const reportMarkdown = await callBusinessAgentFreeModel(sourceRequest, turn.request);
+    return {
+      success: true,
+      mode: "ai",
+      model: turn.request.model,
+      freeOnly: true,
+      reportMarkdown,
+      filledFile: buildBusinessAgentFilledFile(turn.request, reportMarkdown),
+      warnings: [],
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error && error.message ? error.message : "free Business Agent model failed";
+    const reportMarkdown = buildLocalBusinessConsultation(turn.request);
+    return {
+      success: true,
+      mode: "local-fallback",
+      model: turn.request.model,
+      freeOnly: true,
+      reportMarkdown,
+      filledFile: buildBusinessAgentFilledFile(turn.request, reportMarkdown),
+      warnings: [
+        `AI Business Agent was unavailable, so Telegram generated a local fallback report: ${message}`,
+      ],
+    };
+  }
+}
+
+function replaceLastBotTranscriptText(turn: BusinessAgentInterviewTurn, text: string) {
+  return turn.session.transcript.map((entry, index, entries) =>
+    index === entries.length - 1 && entry.source === "bot" ? { ...entry, text } : entry
+  );
+}
+
+async function applyAdaptiveBusinessQuestion(
+  sourceRequest: Request,
+  turn: BusinessAgentInterviewTurn
+): Promise<BusinessAgentInterviewTurn> {
+  if (!turn.nextQuestion) return turn;
+
+  const fallbackMemory = buildDeterministicBusinessAgentMemory(turn.session);
+  const fallbackQuestion = turn.reply;
+  try {
+    const raw = await callBusinessAgentFreeModelMessages(
+      sourceRequest,
+      turn.session.model,
+      buildBusinessAgentAdaptiveQuestionMessages(
+        { ...turn.session, memory: turn.session.memory || fallbackMemory },
+        turn.nextQuestion
+      ),
+      0.2
+    );
+    const adaptive = parseBusinessAgentAdaptiveQuestion(raw, fallbackMemory, fallbackQuestion);
+    const sessionWithMemory = {
+      ...turn.session,
+      memory: adaptive.memory,
+      transcript: replaceLastBotTranscriptText(turn, adaptive.question),
+    };
+    return { ...turn, session: sessionWithMemory, reply: adaptive.question };
+  } catch {
+    const reply = [
+      fallbackQuestion,
+      "",
+      turn.session.language === "ru"
+        ? `Контекст проекта сейчас: ${formatBusinessAgentProjectMemory(fallbackMemory) || "пока мало данных"}.`
+        : `Current project context: ${formatBusinessAgentProjectMemory(fallbackMemory) || "not enough data yet"}.`,
+    ].join("\n");
+    return {
+      ...turn,
+      session: {
+        ...turn.session,
+        memory: fallbackMemory,
+        transcript: replaceLastBotTranscriptText(turn, reply),
+      },
+      reply,
+    };
+  }
+}
+
+function shouldAskAdaptiveQuestion(input: { text?: string; voiceTranscript?: string }) {
+  return Boolean(input.text || input.voiceTranscript);
 }
 
 export async function POST(request: Request) {
@@ -168,12 +250,16 @@ export async function POST(request: Request) {
       channel: extracted.input.voiceTranscript ? "telegram-voice" : "telegram-text",
     });
 
-  const turn = applyBusinessAgentInterviewTurn(session, extracted.input);
+  const baseTurn = applyBusinessAgentInterviewTurn(session, extracted.input);
+  const turn =
+    shouldAskAdaptiveQuestion(extracted.input) && baseTurn.nextQuestion
+      ? await applyAdaptiveBusinessQuestion(request, baseTurn)
+      : baseTurn;
   await sendTelegramMessage(extracted.chatId, turn.reply);
   const processedSession = markBusinessAgentTelegramUpdateProcessed(turn.session, updateId);
 
   if (turn.shouldGenerate) {
-    const response = buildLocalTelegramBusinessResponse(turn.request);
+    const response = await buildTelegramBusinessResponse(request, turn);
     await sendTelegramDocument(extracted.chatId, response);
     saveBusinessAgentTelegramSession({ ...processedSession, status: "complete" });
   } else {

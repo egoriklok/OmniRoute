@@ -121,8 +121,8 @@ export default function BusinessAgentPageClient() {
           <p className="mt-2 text-sm leading-6 text-text-muted">
             A free startup consultation workflow that turns founder answers into a practical
             business diagnosis, filled Project Vault-style strategy file, CJM, roadmap, content
-            plan, market opportunity analysis, and 90-day action plan. It prefers free OmniRoute
-            models and falls back to a local report if a provider is not connected.
+            plan, market opportunity analysis, and 90-day action plan. Telegram interviews use
+            temporary project memory to adapt each follow-up question.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -228,8 +228,8 @@ export default function BusinessAgentPageClient() {
               <div>
                 <h2 className="text-lg font-semibold text-text-main">Consultation output</h2>
                 <p className="mt-1 text-sm text-text-muted">
-                  The report uses a YC-style pressure test, GStack-style role review, bottom-up
-                  market sizing, and a downloadable filled strategy file.
+                  The report uses a YC-style pressure test, GStack and Startup review lenses,
+                  bottom-up market sizing, and a downloadable filled strategy file.
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">

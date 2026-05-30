@@ -74,11 +74,25 @@ export async function callBusinessAgentFreeModel(
   request: Request,
   input: BusinessAgentRequest
 ): Promise<string> {
+  return callBusinessAgentFreeModelMessages(
+    request,
+    input.model,
+    buildBusinessAgentMessages(input),
+    0.25
+  );
+}
+
+export async function callBusinessAgentFreeModelMessages(
+  request: Request,
+  model: string,
+  messages: Array<{ role: string; content: string }>,
+  temperature = 0.25
+): Promise<string> {
   const body = {
-    model: input.model,
+    model,
     stream: false,
-    temperature: 0.25,
-    messages: buildBusinessAgentMessages(input),
+    temperature,
+    messages,
   };
 
   const guard = injectionGuard(body);

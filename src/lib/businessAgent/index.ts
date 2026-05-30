@@ -4,3 +4,4 @@ export * from "./schema";
 export * from "./filledFile";
 export * from "./interview";
 export * from "./telegram";
+export * from "./adaptiveInterview";
