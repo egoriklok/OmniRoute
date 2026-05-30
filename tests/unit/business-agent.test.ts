@@ -142,7 +142,13 @@ test("business agent builds a downloadable filled strategy file", () => {
   assert.match(filledFile.content, /CJM/);
   assert.match(filledFile.content, /Roadmap/);
   assert.match(filledFile.content, /Content plan/);
+  assert.match(filledFile.content, /Market opportunity/);
+  assert.match(filledFile.content, /90-day action plan/);
+  assert.match(filledFile.content, /TAM/);
+  assert.match(filledFile.content, /\$29\.4M/);
   assert.ok(filledFile.sections.includes("Target audience"));
+  assert.ok(filledFile.sections.includes("Market opportunity"));
+  assert.ok(filledFile.sections.includes("90-day action plan"));
 });
 
 test("business agent interview core supports telegram voice turns", () => {

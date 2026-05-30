@@ -71,6 +71,21 @@ function answer(input: BusinessAgentRequest, id: BusinessAgentQuestionId, fallba
   return clean(input.answers[id], fallback);
 }
 
+function firstNumber(value: string | undefined): number | null {
+  if (!value) return null;
+  const match = value.replace(/,/g, "").match(/(\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function moneyLabel(value: number) {
+  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return `$${Math.round(value)}`;
+}
+
 function escapeMarkdownCell(value: string) {
   return value.replace(/\|/g, "\\|").replace(/\n+/g, " ");
 }
@@ -295,6 +310,102 @@ function buildContentPlan(input: BusinessAgentRequest) {
   ].join("\n");
 }
 
+function buildMarketOpportunity(input: BusinessAgentRequest) {
+  const customers = firstNumber(input.answers.marketSize);
+  const price = firstNumber(input.answers.price);
+
+  if (customers && price) {
+    const annualRevenuePerCustomer = price < 1000 ? price * 12 : price;
+    const tam = customers * annualRevenuePerCustomer;
+    const sam = tam * 0.25;
+    const som3 = sam * 0.03;
+    const som5 = sam * 0.06;
+
+    return [
+      row(["Metric", "Draft value", "Assumption"]),
+      row(["---", "---", "---"]),
+      row([
+        "TAM",
+        moneyLabel(tam),
+        `${customers.toLocaleString()} reachable customers x ${moneyLabel(
+          annualRevenuePerCustomer
+        )} annual revenue per customer.`,
+      ]),
+      row([
+        "SAM",
+        moneyLabel(sam),
+        "25% of TAM is realistically serviceable with the first geography, offer, and delivery capacity.",
+      ]),
+      row([
+        "SOM year 3",
+        moneyLabel(som3),
+        "3% of SAM until sales evidence proves a stronger capture rate.",
+      ]),
+      row([
+        "SOM year 5",
+        moneyLabel(som5),
+        "6% of SAM if retention, referrals, and acquisition channels compound.",
+      ]),
+      "",
+      "- Treat this as a working model, not proven market truth.",
+      "- Validate with public datasets, competitor revenue, customer interviews, and paid-pilot conversion.",
+    ].join("\n");
+  }
+
+  return [
+    row(["Metric", "How to fill", "Evidence needed"]),
+    row(["---", "---", "---"]),
+    row([
+      "TAM",
+      "First geography customer count x annual revenue per customer.",
+      "Public datasets, industry directories, taxonomies, or bottom-up lead lists.",
+    ]),
+    row([
+      "SAM",
+      "Narrow TAM by reachable channel, budget fit, product readiness, and delivery capacity.",
+      "Customer interviews and channel tests.",
+    ]),
+    row([
+      "SOM",
+      "Use 2-3% of SAM for a conservative 3-year target and 4-6% for year 5.",
+      "Pilot close rate, retention, repeat purchase, and referral data.",
+    ]),
+    "",
+    "- Missing data: add a numerical customer-count assumption and price assumption to unlock automatic bottom-up math.",
+  ].join("\n");
+}
+
+function buildNinetyDayActionPlan(input: BusinessAgentRequest) {
+  return [
+    row(["Period", "Action", "Output", "Decision gate"]),
+    row(["---", "---", "---", "---"]),
+    row([
+      "Days 0-7",
+      `Interview 5-10 ${answer(input, "targetCustomer")} about "${answer(input, "problem")}".`,
+      "Pain-pattern notes, current alternatives, objection list.",
+      "Continue only if at least 3 people describe the same urgent pain.",
+    ]),
+    row([
+      "Days 8-30",
+      `Deliver the smallest useful version of "${answer(input, "solution")}".`,
+      "Manual MVP, demo, landing page, or first delivered service.",
+      "Continue only if users ask for the next step or agree to a pilot.",
+    ]),
+    row([
+      "Days 31-60",
+      answer(input, "goToMarket", "Run founder-led sales through the most direct channel."),
+      "Weekly outreach/content cadence and conversion tracker.",
+      "Double down on the channel with the highest qualified conversation rate.",
+    ]),
+    row([
+      "Days 61-90",
+      answer(input, "goal90Days", "Close paid pilots and measure repeat use."),
+      "Revenue, retention signal, testimonial, or clear rejection reasons.",
+      "Scale only after willingness to pay and delivery quality are visible.",
+    ]),
+  ].join("\n");
+}
+
 export function buildBusinessAgentFilledFile(
   input: BusinessAgentRequest,
   reportMarkdown: string
@@ -309,6 +420,8 @@ export function buildBusinessAgentFilledFile(
     "CJM",
     "Roadmap",
     "Content plan",
+    "Market opportunity",
+    "90-day action plan",
     "Original consultation report",
   ];
   const filename = `${sanitizeFilenamePart(title) || "business-agent"}-strategy-file.md`;
@@ -353,6 +466,12 @@ export function buildBusinessAgentFilledFile(
     "",
     "## Content plan",
     buildContentPlan(input),
+    "",
+    "## Market opportunity",
+    buildMarketOpportunity(input),
+    "",
+    "## 90-day action plan",
+    buildNinetyDayActionPlan(input),
     "",
     "## Original consultation report",
     reportMarkdown,
