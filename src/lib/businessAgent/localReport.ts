@@ -103,7 +103,12 @@ function cell(value: string) {
 }
 
 function tableRow(cells: string[]) {
-  return `| ${cells.map(cell).join(" |")} |`;
+  if (cells.every((value) => value === "---")) return "";
+  if (cells.length === 2) return `- **${cell(cells[0])}:** ${cell(cells[1])}`;
+  if (cells[0].includes("Field") || cells[0].includes("Поле")) {
+    return `**${cells.map(cell).join(" / ")}**`;
+  }
+  return `- **${cell(cells[0])}:** ${cells.slice(1).map(cell).join(" | ")}`;
 }
 
 function briefBlock(answers: AnswerMap, language: "ru" | "en") {
