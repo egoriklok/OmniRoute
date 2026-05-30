@@ -25,6 +25,7 @@ questions, keeps the conversation in interview mode, and produces a filled markd
 The adapter must use the same `src/lib/businessAgent` schema used by the dashboard.
 The executable interview state machine lives in `src/lib/businessAgent/interview.ts` and is designed
 for a Telegram adapter to call after receiving text or a voice transcript.
+The executable webhook route is `POST /api/business-agent/telegram`.
 
 Project Vault CSV fields:
 
@@ -68,8 +69,8 @@ flowchart TD
   Questions --> Missing["Find missing fields and ask follow-up"]
   Missing --> Complete{"Minimum brief complete?"}
   Complete -->|no| User
-  Complete -->|yes| API["/api/business-agent"]
-  API --> FreeModel["Kiro/free model route"]
+  Complete -->|yes| API["/api/business-agent/telegram"]
+  API --> FreeModel["Business Agent local/free generator"]
   API --> Fallback["Local fallback report"]
   FreeModel --> File["Filled strategy markdown file"]
   Fallback --> File
@@ -77,6 +78,32 @@ flowchart TD
 ```
 
 No paid STT, paid LLM, payment rail, or hosted database is required for the default path.
+
+## Runtime Setup
+
+Required environment variable:
+
+- `TELEGRAM_BOT_TOKEN`: token from BotFather.
+
+Recommended environment variable:
+
+- `BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET`: secret passed to Telegram `setWebhook` and checked via
+  `x-telegram-bot-api-secret-token`.
+
+Optional local/free voice transcription:
+
+- `BUSINESS_AGENT_STT_ENDPOINT`: local HTTP endpoint that accepts multipart `file` and returns JSON
+  with `text` or `transcript`.
+- `BUSINESS_AGENT_ALLOW_REMOTE_STT=1`: only set this if you intentionally use a remote STT endpoint.
+  By default, non-local STT endpoints are rejected.
+
+Webhook registration example:
+
+```bash
+curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -d "url=https://YOUR_HOST/api/business-agent/telegram" \
+  -d "secret_token=$BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET"
+```
 
 ## Interview Stages
 
@@ -136,6 +163,9 @@ The implementation entrypoints are:
 - `buildBusinessAgentRequestFromSession(session)`
 - `extractTelegramBusinessAgentInput(update, { voiceTranscript })`
 - `buildTelegramBusinessAgentDocument(response)`
+- `getBusinessAgentTelegramSession(chatId)`
+- `saveBusinessAgentTelegramSession(session)`
+- `transcribeTelegramBusinessVoice({ botToken, fileId })`
 
 `applyBusinessAgentInterviewTurn` accepts either text or a `voiceTranscript`. A Telegram adapter only
 needs to transcribe the OGG voice message through a local/free STT engine, pass the transcript into
@@ -152,18 +182,16 @@ parsing, voice file detection, and signaling when local STT is needed.
 - `/reset` clears the current interview.
 - `/help` explains voice/text support and that the default path is free-only.
 
-## Implementation Plan
+## Implemented Flow
 
-1. Add a `telegram-business-agent` adapter package or service.
-2. Read `TELEGRAM_BOT_TOKEN` from environment only.
-3. Accept Telegram text messages and voice messages.
-4. For voice, download the Telegram OGG file and transcribe through local/free STT.
-5. Map transcript text into `BusinessAgentQuestionId` answers.
-6. Ask the next missing question from `businessAgentQuestions`.
-7. On `/generate`, call `/api/business-agent` with the session answers.
-8. Save `filledFile.content` to a temporary `.md` file.
-9. Send the file back to the user as a Telegram document.
-10. Delete temporary files after delivery.
+1. `POST /api/business-agent/telegram` receives Telegram updates.
+2. The route validates `BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET` when configured.
+3. Text and commands are parsed directly.
+4. Voice messages are downloaded through Telegram `getFile` and passed to `BUSINESS_AGENT_STT_ENDPOINT`.
+5. Sessions are persisted in SQLite `key_value` under `businessAgentTelegramSessions`.
+6. The interview state machine asks one missing question at a time.
+7. `/generate` builds the Business Agent local fallback report and filled markdown strategy file.
+8. The route sends the reply text and then sends the strategy file back as a Telegram document.
 
 ## Acceptance Criteria
 

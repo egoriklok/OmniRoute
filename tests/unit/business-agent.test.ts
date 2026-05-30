@@ -6,11 +6,15 @@ import path from "node:path";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-business-agent-"));
 const originalDataDir = process.env.DATA_DIR;
+const originalTelegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+const originalTelegramWebhookSecret = process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET;
 process.env.DATA_DIR = tmpDir;
 
 const core = await import("../../src/lib/db/core.ts");
 const businessAgent = await import("../../src/lib/businessAgent/index.ts");
+const sessionStore = await import("../../src/lib/businessAgent/sessionStore.ts");
 const route = await import("../../src/app/api/business-agent/route.ts");
+const telegramRoute = await import("../../src/app/api/business-agent/telegram/route.ts");
 
 const sampleAnswers = {
   projectName: "Founder Strategy Bot",
@@ -50,6 +54,8 @@ type BusinessAgentRouteBody = {
 test.after(() => {
   core.resetDbInstance();
   process.env.DATA_DIR = originalDataDir;
+  process.env.TELEGRAM_BOT_TOKEN = originalTelegramBotToken;
+  process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET = originalTelegramWebhookSecret;
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -213,6 +219,77 @@ test("business agent telegram adapter extracts commands and voice transcript tur
 
   assert.equal(transcribedVoice?.needsVoiceTranscription, false);
   assert.equal(transcribedVoice?.input.voiceTranscript, "We help founders create a strategy file");
+});
+
+test("business agent telegram sessions persist in local sqlite", () => {
+  const session = businessAgent.createBusinessAgentInterviewSession({
+    id: "telegram-chat-store",
+    channel: "telegram-text",
+    language: "en",
+  });
+  const next = businessAgent.recordBusinessAgentInterviewAnswer(
+    session,
+    "idea",
+    "AI strategy interviewer"
+  );
+
+  sessionStore.saveBusinessAgentTelegramSession(next);
+  const loaded = sessionStore.getBusinessAgentTelegramSession("telegram-chat-store");
+  assert.equal(loaded?.answers.idea, "AI strategy interviewer");
+
+  sessionStore.deleteBusinessAgentTelegramSession("telegram-chat-store");
+  assert.equal(sessionStore.getBusinessAgentTelegramSession("telegram-chat-store"), null);
+});
+
+test("business agent telegram webhook starts an interview without paid providers", async () => {
+  const originalFetch = globalThis.fetch;
+  process.env.TELEGRAM_BOT_TOKEN = "test-token";
+  process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET = "secret";
+
+  const fetchCalls: string[] = [];
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    fetchCalls.push(String(url));
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const response = await telegramRoute.POST(
+      new Request("http://localhost/api/business-agent/telegram", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-telegram-bot-api-secret-token": "secret",
+        },
+        body: JSON.stringify({
+          message: {
+            chat: { id: 777 },
+            date: 1780135200,
+            text: "/start",
+          },
+        }),
+      })
+    );
+    const body = (await response.json()) as {
+      success?: boolean;
+      chatId?: string;
+      shouldGenerate?: boolean;
+    };
+
+    assert.equal(response.status, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.chatId, "777");
+    assert.equal(body.shouldGenerate, false);
+    assert.equal(fetchCalls.length, 1);
+    assert.match(fetchCalls[0], /sendMessage/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.TELEGRAM_BOT_TOKEN = originalTelegramBotToken;
+    process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET = originalTelegramWebhookSecret;
+    sessionStore.deleteBusinessAgentTelegramSession("777");
+  }
 });
 
 test("business agent route rejects paid models before provider calls", async () => {
