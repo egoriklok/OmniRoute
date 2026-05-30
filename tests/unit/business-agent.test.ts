@@ -10,10 +10,12 @@ const originalTelegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
 const originalTelegramWebhookSecret = process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET;
 const originalSttEndpoint = process.env.BUSINESS_AGENT_STT_ENDPOINT;
 const originalSttModel = process.env.BUSINESS_AGENT_STT_MODEL;
+const originalRequireApiKey = process.env.REQUIRE_API_KEY;
 process.env.DATA_DIR = tmpDir;
 
 const core = await import("../../src/lib/db/core.ts");
 const businessAgent = await import("../../src/lib/businessAgent/index.ts");
+const businessAgentFreeModel = await import("../../src/lib/businessAgent/freeModel.ts");
 const sessionStore = await import("../../src/lib/businessAgent/sessionStore.ts");
 const voiceTranscription = await import("../../src/lib/businessAgent/voiceTranscription.ts");
 const route = await import("../../src/app/api/business-agent/route.ts");
@@ -69,6 +71,8 @@ test.after(() => {
   restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
   restoreEnv("BUSINESS_AGENT_STT_ENDPOINT", originalSttEndpoint);
   restoreEnv("BUSINESS_AGENT_STT_MODEL", originalSttModel);
+  restoreEnv("REQUIRE_API_KEY", originalRequireApiKey);
+  businessAgentFreeModel.setBusinessAgentChatExecutorForTest(null);
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -562,13 +566,69 @@ test("business agent route rejects paid models before provider calls", async () 
   }
 });
 
-test("business agent route falls back locally when the free provider is unavailable", async () => {
+test("business agent route calls the chat handler directly when API keys are required", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () =>
-    new Response(JSON.stringify({ error: { message: "Kiro not connected" } }), {
+  let fetchCalled = false;
+  globalThis.fetch = (async () => {
+    fetchCalled = true;
+    throw new Error("business agent should not self-fetch /api/v1/chat/completions");
+  }) as typeof fetch;
+  process.env.REQUIRE_API_KEY = "true";
+
+  businessAgentFreeModel.setBusinessAgentChatExecutorForTest(async (chatRequest) => {
+    assert.equal(chatRequest.url, "http://localhost/api/v1/chat/completions");
+    assert.equal(chatRequest.headers.get("authorization"), null);
+    assert.equal(chatRequest.headers.get("x-omniroute-internal-caller"), "business-agent");
+
+    const body = await chatRequest.json();
+    assert.equal(body.model, "kr/claude-sonnet-4.5");
+    assert.equal(body.stream, false);
+    assert.equal(body.messages.length, 2);
+
+    return new Response(
+      JSON.stringify({
+        choices: [{ message: { content: "## AI Business Strategy\nDirect handler result." } }],
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }
+    );
+  });
+
+  try {
+    const response = await route.POST(
+      new Request("http://localhost/api/business-agent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          answers: sampleAnswers,
+          language: "en",
+          model: "kr/claude-sonnet-4.5",
+        }),
+      })
+    );
+    const body = (await response.json()) as BusinessAgentRouteBody;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.mode, "ai");
+    assert.match(body.reportMarkdown, /Direct handler result/);
+    assert.equal(fetchCalled, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv("REQUIRE_API_KEY", originalRequireApiKey);
+    businessAgentFreeModel.setBusinessAgentChatExecutorForTest(null);
+  }
+});
+
+test("business agent route falls back locally when the free provider is unavailable", async () => {
+  businessAgentFreeModel.setBusinessAgentChatExecutorForTest(async () => {
+    return new Response(JSON.stringify({ error: { message: "Kiro not connected" } }), {
       status: 503,
       headers: { "content-type": "application/json" },
-    })) as typeof fetch;
+    });
+  });
 
   try {
     const response = await route.POST(
@@ -592,6 +652,6 @@ test("business agent route falls back locally when the free provider is unavaila
     assert.match(body.filledFile?.content, /Content plan/);
     assert.match(body.warnings[0], /Kiro not connected/);
   } finally {
-    globalThis.fetch = originalFetch;
+    businessAgentFreeModel.setBusinessAgentChatExecutorForTest(null);
   }
 });

@@ -2,69 +2,18 @@ import { NextResponse } from "next/server";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import {
   buildBusinessAgentFilledFile,
-  buildBusinessAgentMessages,
   buildLocalBusinessConsultation,
   businessAgentRequestSchema,
   isFreeBusinessAgentModel,
-  type BusinessAgentRequest,
   type BusinessAgentResponse,
 } from "@/lib/businessAgent";
+import { callBusinessAgentFreeModel } from "@/lib/businessAgent/freeModel";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
-
-type ChatCompletionResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
-};
 
 function asErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === "string" && error) return error;
   return "Unknown provider error";
-}
-
-function getRequestOrigin(request: Request) {
-  try {
-    return new URL(request.url).origin;
-  } catch {
-    return "http://localhost:20128";
-  }
-}
-
-async function callFreeModel(request: Request, input: BusinessAgentRequest) {
-  const origin = getRequestOrigin(request);
-  const response = await fetch(`${origin}/api/v1/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(request.headers.get("cookie") ? { Cookie: request.headers.get("cookie") || "" } : {}),
-      ...(request.headers.get("authorization")
-        ? { Authorization: request.headers.get("authorization") || "" }
-        : {}),
-    },
-    body: JSON.stringify({
-      model: input.model,
-      stream: false,
-      temperature: 0.25,
-      messages: buildBusinessAgentMessages(input),
-    }),
-  });
-
-  const data = (await response.json().catch(() => null)) as ChatCompletionResponse | null;
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `Free model call failed with ${response.status}`);
-  }
-
-  const content = data?.choices?.[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("Free model returned an empty response");
-  }
-  return content;
 }
 
 export async function POST(request: Request) {
@@ -102,7 +51,7 @@ export async function POST(request: Request) {
 
   const warnings: string[] = [];
   try {
-    const reportMarkdown = await callFreeModel(request, input);
+    const reportMarkdown = await callBusinessAgentFreeModel(request, input);
     const response: BusinessAgentResponse = {
       success: true,
       mode: "ai",
