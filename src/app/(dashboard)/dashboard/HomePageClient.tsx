@@ -180,6 +180,7 @@ export default function HomePageClient({ machineId }: HomePageClientProps) {
   }, [selectedProvider, models]);
 
   const quickStartLinks = [
+    { label: "Business Agent", href: "/dashboard/business-agent", icon: "psychology_alt" },
     { label: t("documentation"), href: "/docs", icon: "menu_book" },
     { label: ts("providers"), href: "/dashboard/providers", icon: "dns" },
     { label: ts("combos"), href: "/dashboard/combos", icon: "layers" },

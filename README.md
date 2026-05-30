@@ -1373,6 +1373,7 @@ See the [Proxy Guide](docs/PROXY_GUIDE.md) for setup instructions.
 | [Auto-Combo Engine](docs/AUTO-COMBO.md)                          | 6-factor scoring, mode packs, self-healing                                    |
 | [Proxy Guide](docs/PROXY_GUIDE.md)                               | 3-level proxy system, 1proxy marketplace, registry CRUD                       |
 | [Free Tiers](docs/FREE_TIERS.md)                                 | 25+ free API providers consolidated directory                                 |
+| [Business Agent](docs/BUSINESS_AGENT.md)                         | Free startup consultation workflow with Kiro/free-model fallback              |
 | [Features Gallery](docs/FEATURES.md)                             | Visual dashboard tour with screenshots                                        |
 | [Codebase Documentation](docs/CODEBASE_DOCUMENTATION.md)         | Beginner-friendly codebase walkthrough                                        |
 
@@ -1519,4 +1520,3 @@ MIT License - see [LICENSE](LICENSE) for details.
   <sub><a href="https://omniroute.online">omniroute.online</a></sub>
 </div>
 <!-- GitHub Discussions enabled for community Q&A -->
-
