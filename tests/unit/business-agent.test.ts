@@ -120,6 +120,101 @@ test("business agent builds a downloadable filled strategy file", () => {
   assert.ok(filledFile.sections.includes("Target audience"));
 });
 
+test("business agent interview core supports telegram voice turns", () => {
+  let session = businessAgent.createBusinessAgentInterviewSession({
+    id: "telegram-chat-1",
+    channel: "telegram-voice",
+    language: "en",
+    now: new Date("2026-05-30T10:00:00.000Z"),
+  });
+
+  let turn = businessAgent.applyBusinessAgentInterviewTurn(session, { command: "/start" });
+  assert.equal(turn.nextQuestion?.id, "idea");
+  assert.equal(turn.shouldGenerate, false);
+
+  session = turn.session;
+  turn = businessAgent.applyBusinessAgentInterviewTurn(session, {
+    voiceTranscript: "AI consultant for founders",
+    receivedAt: "2026-05-30T10:01:00.000Z",
+  });
+  assert.equal(turn.session.answers.idea, "AI consultant for founders");
+  assert.equal(turn.session.transcript.at(-2)?.source, "user-voice");
+  assert.equal(turn.nextQuestion?.id, "problem");
+
+  session = turn.session;
+  turn = businessAgent.applyBusinessAgentInterviewTurn(session, { command: "/brief" });
+  assert.match(turn.reply, /Completed 1\/27/);
+  assert.match(turn.reply, /Required fields: 1\/4/);
+});
+
+test("business agent interview core only generates after required answers", () => {
+  let session = businessAgent.createBusinessAgentInterviewSession({
+    id: "telegram-chat-2",
+    channel: "telegram-text",
+    language: "en",
+  });
+
+  let turn = businessAgent.applyBusinessAgentInterviewTurn(session, { command: "/generate" });
+  assert.equal(turn.shouldGenerate, false);
+  assert.equal(turn.nextQuestion?.id, "idea");
+
+  session = {
+    ...turn.session,
+    answers: {
+      idea: sampleAnswers.idea,
+      problem: sampleAnswers.problem,
+      targetCustomer: sampleAnswers.targetCustomer,
+      solution: sampleAnswers.solution,
+    },
+  };
+  turn = businessAgent.applyBusinessAgentInterviewTurn(session, { command: "/generate" });
+
+  assert.equal(turn.shouldGenerate, true);
+  assert.equal(turn.session.status, "generating");
+  assert.equal(turn.request?.answers.idea, sampleAnswers.idea);
+  assert.equal(turn.request?.model, "kr/claude-sonnet-4.5");
+});
+
+test("business agent telegram adapter extracts commands and voice transcript turns", () => {
+  const textInput = businessAgent.extractTelegramBusinessAgentInput({
+    message: {
+      chat: { id: 42 },
+      date: 1780135200,
+      text: "/brief@BusinessAgentBot",
+    },
+  });
+
+  assert.equal(textInput?.chatId, "42");
+  assert.equal(textInput?.input.command, "/brief");
+  assert.equal(textInput?.needsVoiceTranscription, false);
+
+  const pendingVoice = businessAgent.extractTelegramBusinessAgentInput({
+    message: {
+      chat: { id: "founder-chat" },
+      date: 1780135260,
+      voice: { file_id: "voice-file-1", duration: 12 },
+    },
+  });
+
+  assert.equal(pendingVoice?.chatId, "founder-chat");
+  assert.equal(pendingVoice?.needsVoiceTranscription, true);
+  assert.equal(pendingVoice?.voiceFileId, "voice-file-1");
+
+  const transcribedVoice = businessAgent.extractTelegramBusinessAgentInput(
+    {
+      message: {
+        chat: { id: "founder-chat" },
+        date: 1780135260,
+        voice: { file_id: "voice-file-1", duration: 12 },
+      },
+    },
+    { voiceTranscript: "We help founders create a strategy file" }
+  );
+
+  assert.equal(transcribedVoice?.needsVoiceTranscription, false);
+  assert.equal(transcribedVoice?.input.voiceTranscript, "We help founders create a strategy file");
+});
+
 test("business agent route rejects paid models before provider calls", async () => {
   const originalFetch = globalThis.fetch;
   let fetchCalled = false;

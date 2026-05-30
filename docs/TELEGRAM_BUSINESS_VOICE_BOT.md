@@ -23,6 +23,8 @@ questions, keeps the conversation in interview mode, and produces a filled markd
 ## Source Inputs
 
 The adapter must use the same `src/lib/businessAgent` schema used by the dashboard.
+The executable interview state machine lives in `src/lib/businessAgent/interview.ts` and is designed
+for a Telegram adapter to call after receiving text or a voice transcript.
 
 Project Vault CSV fields:
 
@@ -90,7 +92,8 @@ No paid STT, paid LLM, payment rail, or hosted database is required for the defa
 
 ## State Model
 
-The adapter should persist one session per Telegram chat:
+The adapter should persist one session per Telegram chat. The canonical TypeScript shape is exported
+as `BusinessAgentInterviewSession`:
 
 ```ts
 type TelegramBusinessSession = {
@@ -124,6 +127,22 @@ Priority order:
 
 After every 4-6 answers, the bot should summarize what it understood and ask whether to continue or
 correct something.
+
+The implementation entrypoints are:
+
+- `createBusinessAgentInterviewSession(...)`
+- `applyBusinessAgentInterviewTurn(session, input)`
+- `getBusinessAgentInterviewProgress(session)`
+- `buildBusinessAgentRequestFromSession(session)`
+- `extractTelegramBusinessAgentInput(update, { voiceTranscript })`
+- `buildTelegramBusinessAgentDocument(response)`
+
+`applyBusinessAgentInterviewTurn` accepts either text or a `voiceTranscript`. A Telegram adapter only
+needs to transcribe the OGG voice message through a local/free STT engine, pass the transcript into
+this function, and persist the returned session.
+
+`extractTelegramBusinessAgentInput` performs the Telegram-specific part: chat id extraction, command
+parsing, voice file detection, and signaling when local STT is needed.
 
 ## Telegram Commands
 
