@@ -189,7 +189,8 @@ parsing, voice file detection, and signaling when local STT is needed.
 4. Voice messages are downloaded through Telegram `getFile`.
 5. If `BUSINESS_AGENT_STT_ENDPOINT` is set, the file is sent there.
 6. Otherwise OmniRoute uses `BUSINESS_AGENT_STT_MODEL`, defaulting to local/free `qwen/qwen3-asr`.
-7. Sessions are persisted in SQLite `key_value` under `businessAgentTelegramSessions`.
+7. Sessions are persisted in SQLite `key_value` under `businessAgentTelegramSessions` after the
+   Telegram reply succeeds.
 8. The interview state machine asks one missing question at a time.
 9. `/generate` builds the Business Agent local fallback report and filled markdown strategy file.
 10. The route sends the reply text and then sends the strategy file back as a Telegram document.

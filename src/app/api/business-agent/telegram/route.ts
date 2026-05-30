@@ -158,13 +158,14 @@ export async function POST(request: Request) {
     });
 
   const turn = applyBusinessAgentInterviewTurn(session, extracted.input);
-  saveBusinessAgentTelegramSession(turn.session);
   await sendTelegramMessage(extracted.chatId, turn.reply);
 
   if (turn.shouldGenerate) {
     const response = buildLocalTelegramBusinessResponse(turn.request);
     await sendTelegramDocument(extracted.chatId, response);
     saveBusinessAgentTelegramSession({ ...turn.session, status: "complete" });
+  } else {
+    saveBusinessAgentTelegramSession(turn.session);
   }
 
   return NextResponse.json({

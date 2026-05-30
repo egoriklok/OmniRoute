@@ -356,6 +356,47 @@ test("business agent telegram webhook requires a configured secret", async () =>
   }
 });
 
+test("business agent telegram webhook persists only after reply delivery", async () => {
+  const originalFetch = globalThis.fetch;
+  process.env.TELEGRAM_BOT_TOKEN = "test-token";
+  process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET = "secret";
+
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ ok: false, description: "temporary Telegram failure" }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () =>
+        telegramRoute.POST(
+          new Request("http://localhost/api/business-agent/telegram", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-telegram-bot-api-secret-token": "secret",
+            },
+            body: JSON.stringify({
+              message: {
+                chat: { id: 779 },
+                date: 1780135200,
+                text: "/start",
+              },
+            }),
+          })
+        ),
+      /temporary Telegram failure/
+    );
+    assert.equal(sessionStore.getBusinessAgentTelegramSession("779"), null);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
+    restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
+    sessionStore.deleteBusinessAgentTelegramSession("779");
+  }
+});
+
 test("business agent voice transcription defaults to local qwen ASR", async () => {
   const originalFetch = globalThis.fetch;
   delete process.env.BUSINESS_AGENT_STT_ENDPOINT;
