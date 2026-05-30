@@ -8,13 +8,24 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "omniroute-business-agent-"
 const originalDataDir = process.env.DATA_DIR;
 const originalTelegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
 const originalTelegramWebhookSecret = process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET;
+const originalSttEndpoint = process.env.BUSINESS_AGENT_STT_ENDPOINT;
+const originalSttModel = process.env.BUSINESS_AGENT_STT_MODEL;
 process.env.DATA_DIR = tmpDir;
 
 const core = await import("../../src/lib/db/core.ts");
 const businessAgent = await import("../../src/lib/businessAgent/index.ts");
 const sessionStore = await import("../../src/lib/businessAgent/sessionStore.ts");
+const voiceTranscription = await import("../../src/lib/businessAgent/voiceTranscription.ts");
 const route = await import("../../src/app/api/business-agent/route.ts");
 const telegramRoute = await import("../../src/app/api/business-agent/telegram/route.ts");
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
+}
 
 const sampleAnswers = {
   projectName: "Founder Strategy Bot",
@@ -53,9 +64,11 @@ type BusinessAgentRouteBody = {
 
 test.after(() => {
   core.resetDbInstance();
-  process.env.DATA_DIR = originalDataDir;
-  process.env.TELEGRAM_BOT_TOKEN = originalTelegramBotToken;
-  process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET = originalTelegramWebhookSecret;
+  restoreEnv("DATA_DIR", originalDataDir);
+  restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
+  restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
+  restoreEnv("BUSINESS_AGENT_STT_ENDPOINT", originalSttEndpoint);
+  restoreEnv("BUSINESS_AGENT_STT_MODEL", originalSttModel);
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -286,9 +299,65 @@ test("business agent telegram webhook starts an interview without paid providers
     assert.match(fetchCalls[0], /sendMessage/);
   } finally {
     globalThis.fetch = originalFetch;
-    process.env.TELEGRAM_BOT_TOKEN = originalTelegramBotToken;
-    process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET = originalTelegramWebhookSecret;
+    restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
+    restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
     sessionStore.deleteBusinessAgentTelegramSession("777");
+  }
+});
+
+test("business agent voice transcription defaults to local qwen ASR", async () => {
+  const originalFetch = globalThis.fetch;
+  delete process.env.BUSINESS_AGENT_STT_ENDPOINT;
+  delete process.env.BUSINESS_AGENT_STT_MODEL;
+
+  const fetchCalls: string[] = [];
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const requestUrl = String(url);
+    fetchCalls.push(requestUrl);
+
+    if (requestUrl.includes("/getFile")) {
+      return new Response(JSON.stringify({ ok: true, result: { file_path: "voice/file.ogg" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    if (requestUrl.includes("https://api.telegram.org/file/")) {
+      return new Response(new Uint8Array([1, 2, 3]).buffer, {
+        status: 200,
+        headers: { "content-type": "audio/ogg" },
+      });
+    }
+
+    if (requestUrl === "http://localhost:8000/v1/audio/transcriptions") {
+      const body = init?.body;
+      assert.ok(body instanceof FormData);
+      assert.equal(body.get("model"), "qwen3-asr");
+      return new Response(JSON.stringify({ text: "Founder idea transcript" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    throw new Error(`Unexpected fetch call: ${requestUrl}`);
+  }) as typeof fetch;
+
+  try {
+    const transcript = await voiceTranscription.transcribeTelegramBusinessVoice({
+      botToken: "test-token",
+      fileId: "voice-file-id",
+    });
+
+    assert.equal(transcript, "Founder idea transcript");
+    assert.deepEqual(fetchCalls, [
+      "https://api.telegram.org/bottest-token/getFile?file_id=voice-file-id",
+      "https://api.telegram.org/file/bottest-token/voice/file.ogg",
+      "http://localhost:8000/v1/audio/transcriptions",
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv("BUSINESS_AGENT_STT_ENDPOINT", originalSttEndpoint);
+    restoreEnv("BUSINESS_AGENT_STT_MODEL", originalSttModel);
   }
 });
 

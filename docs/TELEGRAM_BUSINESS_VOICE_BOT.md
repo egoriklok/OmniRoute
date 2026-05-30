@@ -92,8 +92,10 @@ Recommended environment variable:
 
 Optional local/free voice transcription:
 
-- `BUSINESS_AGENT_STT_ENDPOINT`: local HTTP endpoint that accepts multipart `file` and returns JSON
-  with `text` or `transcript`.
+- `BUSINESS_AGENT_STT_MODEL`: OmniRoute audio transcription model. Defaults to `qwen/qwen3-asr`,
+  which targets the local Qwen-compatible endpoint at `localhost:8000`.
+- `BUSINESS_AGENT_STT_ENDPOINT`: override with a local HTTP endpoint that accepts multipart `file`
+  and returns JSON with `text` or `transcript`.
 - `BUSINESS_AGENT_ALLOW_REMOTE_STT=1`: only set this if you intentionally use a remote STT endpoint.
   By default, non-local STT endpoints are rejected.
 
@@ -187,11 +189,13 @@ parsing, voice file detection, and signaling when local STT is needed.
 1. `POST /api/business-agent/telegram` receives Telegram updates.
 2. The route validates `BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET` when configured.
 3. Text and commands are parsed directly.
-4. Voice messages are downloaded through Telegram `getFile` and passed to `BUSINESS_AGENT_STT_ENDPOINT`.
-5. Sessions are persisted in SQLite `key_value` under `businessAgentTelegramSessions`.
-6. The interview state machine asks one missing question at a time.
-7. `/generate` builds the Business Agent local fallback report and filled markdown strategy file.
-8. The route sends the reply text and then sends the strategy file back as a Telegram document.
+4. Voice messages are downloaded through Telegram `getFile`.
+5. If `BUSINESS_AGENT_STT_ENDPOINT` is set, the file is sent there.
+6. Otherwise OmniRoute uses `BUSINESS_AGENT_STT_MODEL`, defaulting to local/free `qwen/qwen3-asr`.
+7. Sessions are persisted in SQLite `key_value` under `businessAgentTelegramSessions`.
+8. The interview state machine asks one missing question at a time.
+9. `/generate` builds the Business Agent local fallback report and filled markdown strategy file.
+10. The route sends the reply text and then sends the strategy file back as a Telegram document.
 
 ## Acceptance Criteria
 
