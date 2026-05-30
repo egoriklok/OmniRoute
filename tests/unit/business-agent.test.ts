@@ -394,6 +394,145 @@ test("business agent telegram webhook ignores retried update ids", async () => {
   }
 });
 
+test("business agent telegram webhook ignores retried reset updates", async () => {
+  const originalFetch = globalThis.fetch;
+  process.env.TELEGRAM_BOT_TOKEN = "test-token";
+  process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET = "secret";
+
+  const fetchCalls: string[] = [];
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    fetchCalls.push(String(url));
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const resetBody = {
+    update_id: 1003,
+    message: {
+      chat: { id: 781 },
+      date: 1780135200,
+      text: "/reset",
+    },
+  };
+
+  try {
+    const reset = await telegramRoute.POST(
+      new Request("http://localhost/api/business-agent/telegram", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-telegram-bot-api-secret-token": "secret",
+        },
+        body: JSON.stringify(resetBody),
+      })
+    );
+    const answer = await telegramRoute.POST(
+      new Request("http://localhost/api/business-agent/telegram", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-telegram-bot-api-secret-token": "secret",
+        },
+        body: JSON.stringify({
+          update_id: 1004,
+          message: {
+            chat: { id: 781 },
+            date: 1780135260,
+            text: "New idea after reset",
+          },
+        }),
+      })
+    );
+    const duplicateReset = await telegramRoute.POST(
+      new Request("http://localhost/api/business-agent/telegram", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-telegram-bot-api-secret-token": "secret",
+        },
+        body: JSON.stringify(resetBody),
+      })
+    );
+    const duplicateBody = (await duplicateReset.json()) as {
+      success?: boolean;
+      duplicate?: boolean;
+    };
+    const session = sessionStore.getBusinessAgentTelegramSession("781");
+
+    assert.equal(reset.status, 200);
+    assert.equal(answer.status, 200);
+    assert.equal(duplicateReset.status, 200);
+    assert.equal(duplicateBody.success, true);
+    assert.equal(duplicateBody.duplicate, true);
+    assert.equal(fetchCalls.length, 2);
+    assert.equal(session?.answers.idea, "New idea after reset");
+    assert.deepEqual(session?.processedTelegramUpdateIds, [1003, 1004]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
+    restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
+    sessionStore.deleteBusinessAgentTelegramSession("781");
+  }
+});
+
+test("business agent telegram webhook keeps prior session when reset reply fails", async () => {
+  const originalFetch = globalThis.fetch;
+  process.env.TELEGRAM_BOT_TOKEN = "test-token";
+  process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET = "secret";
+
+  const existingSession = businessAgent.createBusinessAgentInterviewSession({
+    id: "782",
+    channel: "telegram-text",
+    language: "en",
+  });
+  sessionStore.saveBusinessAgentTelegramSession({
+    ...existingSession,
+    answers: { idea: "Existing idea before failed reset" },
+    lastQuestionId: "problem",
+  });
+
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ ok: false, description: "temporary Telegram failure" }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () =>
+        telegramRoute.POST(
+          new Request("http://localhost/api/business-agent/telegram", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-telegram-bot-api-secret-token": "secret",
+            },
+            body: JSON.stringify({
+              update_id: 1005,
+              message: {
+                chat: { id: 782 },
+                date: 1780135320,
+                text: "/reset",
+              },
+            }),
+          })
+        ),
+      /temporary Telegram failure/
+    );
+    assert.equal(
+      sessionStore.getBusinessAgentTelegramSession("782")?.answers.idea,
+      "Existing idea before failed reset"
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
+    restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
+    sessionStore.deleteBusinessAgentTelegramSession("782");
+  }
+});
+
 test("business agent telegram webhook requires a configured secret", async () => {
   const originalFetch = globalThis.fetch;
   process.env.TELEGRAM_BOT_TOKEN = "test-token";

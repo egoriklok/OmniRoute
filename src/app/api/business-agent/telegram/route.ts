@@ -10,7 +10,6 @@ import {
   type TelegramBusinessAgentUpdate,
 } from "@/lib/businessAgent";
 import {
-  deleteBusinessAgentTelegramSession,
   getBusinessAgentTelegramSession,
   isBusinessAgentTelegramUpdateProcessed,
   markBusinessAgentTelegramUpdateProcessed,
@@ -132,8 +131,7 @@ export async function POST(request: Request) {
   if (!extracted) return NextResponse.json({ success: true, ignored: true });
 
   const updateId = normalizeTelegramUpdateId(update.update_id);
-  let existing =
-    extracted.input.command === "/reset" ? null : getBusinessAgentTelegramSession(extracted.chatId);
+  const existing = getBusinessAgentTelegramSession(extracted.chatId);
   if (isBusinessAgentTelegramUpdateProcessed(existing, updateId)) {
     return NextResponse.json({
       success: true,
@@ -162,11 +160,6 @@ export async function POST(request: Request) {
   }
 
   if (!extracted) return NextResponse.json({ success: true, ignored: true });
-
-  if (extracted.input.command === "/reset") {
-    deleteBusinessAgentTelegramSession(extracted.chatId);
-    existing = null;
-  }
 
   const session =
     existing ||
