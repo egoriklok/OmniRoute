@@ -12,8 +12,8 @@ filled file with mission, CJM, roadmap, target audience, content plan, market si
 ## Free-Only Route
 
 - Default model: `kr/claude-sonnet-4.5`
-- Other built-in free options: `kr/claude-haiku-4.5`, `if/kimi-k2-thinking`, `pol/gpt-5`,
-  `lc/longcat-flash-lite`, `combo/free-stack`, `combo/free-forever`
+- Other built-in free options: `kr/claude-haiku-4.5`, `if/kimi-k2`, `pol/openai-fast`,
+  `lc/LongCat-Flash-Lite`, plus explicit `:free` model routes
 - Paid model ids are rejected by `/api/business-agent`
 - If the selected free provider is not connected or fails, the API returns a local fallback report
   instead of charging a paid model
@@ -92,7 +92,7 @@ same schema, prompt, local fallback, and filled-file generator can be called fro
 | Decision                                                      | Alternatives Considered                   | Objection                                                          | Resolution                                               |
 | ------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
 | Add a dedicated dashboard page at `/dashboard/business-agent` | Hide the workflow inside Skills or Agents | A hidden workflow would be hard for non-technical founders to find | Accepted dedicated page and added a dashboard quick link |
-| Enforce free-only model ids in the API                        | Let users choose any model                | This could accidentally use paid resources                         | Accepted strict allowlist/prefix guard                   |
+| Enforce free-only model ids in the API                        | Let users choose any model                | This could accidentally use paid resources                         | Accepted strict allowlist plus `:free` routes            |
 | Use Kiro as the default free route                            | Require OpenRouter/Groq/Gemini API keys   | The user explicitly pointed to Kiro connect flow                   | Accepted Kiro default with other free backups            |
 | Provide local fallback when provider auth is missing          | Fail until the user logs in               | This would block the free consultation                             | Accepted deterministic fallback with clear warning       |
 | Avoid sourced market numbers without data                     | Ask the model to estimate everything      | Hallucinated TAM/SAM/SOM would create false confidence             | Accepted formulas, assumptions, and validation plan      |

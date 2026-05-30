@@ -93,7 +93,7 @@ export async function POST(request: Request) {
         success: false,
         error: {
           message: "Business Agent only accepts free model routes.",
-          allowedExamples: ["kr/claude-sonnet-4.5", "kr/claude-haiku-4.5", "combo/free-stack"],
+          allowedExamples: ["kr/claude-sonnet-4.5", "if/kimi-k2", "lc/LongCat-Flash-Lite"],
         },
       },
       { status: 400 }

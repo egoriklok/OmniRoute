@@ -32,10 +32,21 @@ function getWebhookSecret() {
   return process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET?.trim() || "";
 }
 
-function validateTelegramSecret(request: Request) {
+function validateTelegramSecret(
+  request: Request
+): { ok: true } | { ok: false; status: number; error: string } {
   const expected = getWebhookSecret();
-  if (!expected) return true;
-  return request.headers.get("x-telegram-bot-api-secret-token") === expected;
+  if (!expected) {
+    return {
+      ok: false,
+      status: 503,
+      error: "BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET is not configured",
+    };
+  }
+  if (request.headers.get("x-telegram-bot-api-secret-token") !== expected) {
+    return { ok: false, status: 401, error: "Invalid Telegram webhook secret" };
+  }
+  return { ok: true };
 }
 
 async function callTelegram(method: string, body: BodyInit) {
@@ -89,10 +100,11 @@ function buildLocalTelegramBusinessResponse(
 }
 
 export async function POST(request: Request) {
-  if (!validateTelegramSecret(request)) {
+  const secretValidation = validateTelegramSecret(request);
+  if (!secretValidation.ok) {
     return NextResponse.json(
-      { success: false, error: "Invalid Telegram webhook secret" },
-      { status: 401 }
+      { success: false, error: secretValidation.error },
+      { status: secretValidation.status }
     );
   }
 

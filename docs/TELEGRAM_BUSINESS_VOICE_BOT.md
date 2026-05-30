@@ -63,7 +63,7 @@ flowchart TD
   Voice --> Adapter["Telegram adapter"]
   Adapter --> STT{"Voice?"}
   STT -->|text| State["Interview state"]
-  STT -->|voice| LocalSTT["Local/free STT: whisper.cpp or Vosk"]
+  STT -->|voice| LocalSTT["Local/free STT: Qwen ASR or local endpoint"]
   LocalSTT --> State
   State --> Questions["Business Agent question schema"]
   Questions --> Missing["Find missing fields and ask follow-up"]
@@ -81,14 +81,11 @@ No paid STT, paid LLM, payment rail, or hosted database is required for the defa
 
 ## Runtime Setup
 
-Required environment variable:
+Required environment variables:
 
 - `TELEGRAM_BOT_TOKEN`: token from BotFather.
-
-Recommended environment variable:
-
 - `BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET`: secret passed to Telegram `setWebhook` and checked via
-  `x-telegram-bot-api-secret-token`.
+  `x-telegram-bot-api-secret-token`. The webhook fails closed when this is not configured.
 
 Optional local/free voice transcription:
 
@@ -187,7 +184,7 @@ parsing, voice file detection, and signaling when local STT is needed.
 ## Implemented Flow
 
 1. `POST /api/business-agent/telegram` receives Telegram updates.
-2. The route validates `BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET` when configured.
+2. The route requires and validates `BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET`.
 3. Text and commands are parsed directly.
 4. Voice messages are downloaded through Telegram `getFile`.
 5. If `BUSINESS_AGENT_STT_ENDPOINT` is set, the file is sent there.
@@ -204,4 +201,6 @@ parsing, voice file detection, and signaling when local STT is needed.
 - If Kiro is disconnected, local fallback still returns a useful file.
 - The returned file contains Project Vault brief, product description, mission, CJM, roadmap, target
   audience, content plan, market opportunity, and 90-day plan.
+- The public webhook rejects updates unless `BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET` is configured
+  and matches Telegram's secret header.
 - The bot does not store secrets in Git and does not require paid infrastructure.

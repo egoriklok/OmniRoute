@@ -74,8 +74,14 @@ test.after(() => {
 
 test("business agent accepts only free model routes", () => {
   assert.equal(businessAgent.isFreeBusinessAgentModel("kr/claude-sonnet-4.5"), true);
+  assert.equal(businessAgent.isFreeBusinessAgentModel("if/kimi-k2"), true);
+  assert.equal(businessAgent.isFreeBusinessAgentModel("pol/openai-fast"), true);
+  assert.equal(businessAgent.isFreeBusinessAgentModel("lc/LongCat-Flash-Lite"), true);
   assert.equal(businessAgent.isFreeBusinessAgentModel("openrouter/deepseek-r1:free"), true);
-  assert.equal(businessAgent.isFreeBusinessAgentModel("combo/free-stack"), true);
+  assert.equal(businessAgent.isFreeBusinessAgentModel("combo/free-stack"), false);
+  assert.equal(businessAgent.isFreeBusinessAgentModel("combo/free-unreviewed"), false);
+  assert.equal(businessAgent.isFreeBusinessAgentModel("if/kimi-k2-thinking"), false);
+  assert.equal(businessAgent.isFreeBusinessAgentModel("lc/longcat-flash-lite"), false);
   assert.equal(businessAgent.isFreeBusinessAgentModel("openai/gpt-5"), false);
   assert.equal(businessAgent.isFreeBusinessAgentModel("anthropic/claude-opus"), false);
 });
@@ -302,6 +308,51 @@ test("business agent telegram webhook starts an interview without paid providers
     restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
     restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
     sessionStore.deleteBusinessAgentTelegramSession("777");
+  }
+});
+
+test("business agent telegram webhook requires a configured secret", async () => {
+  const originalFetch = globalThis.fetch;
+  process.env.TELEGRAM_BOT_TOKEN = "test-token";
+  delete process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET;
+
+  let fetchCalled = false;
+  globalThis.fetch = (async () => {
+    fetchCalled = true;
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const response = await telegramRoute.POST(
+      new Request("http://localhost/api/business-agent/telegram", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: {
+            chat: { id: 778 },
+            date: 1780135200,
+            text: "/start",
+          },
+        }),
+      })
+    );
+    const body = (await response.json()) as {
+      success?: boolean;
+      error?: string;
+    };
+
+    assert.equal(response.status, 503);
+    assert.equal(body.success, false);
+    assert.match(body.error, /WEBHOOK_SECRET/);
+    assert.equal(fetchCalled, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
+    restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
+    sessionStore.deleteBusinessAgentTelegramSession("778");
   }
 });
 

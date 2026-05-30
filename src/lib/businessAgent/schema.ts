@@ -212,22 +212,17 @@ export const businessAgentQuestions: BusinessAgentQuestion[] = [
 export const freeBusinessAgentModels = [
   "kr/claude-sonnet-4.5",
   "kr/claude-haiku-4.5",
-  "if/kimi-k2-thinking",
-  "pol/gpt-5",
-  "lc/longcat-flash-lite",
-  "combo/free-stack",
-  "combo/free-forever",
+  "if/kimi-k2",
+  "pol/openai-fast",
+  "lc/LongCat-Flash-Lite",
 ] as const;
-
-const allowedFreePrefixes = ["kr/", "if/", "pol/", "lc/"] as const;
 
 export function isFreeBusinessAgentModel(model: string): boolean {
   const normalized = model.trim();
   if (!normalized) return false;
   if ((freeBusinessAgentModels as readonly string[]).includes(normalized)) return true;
-  if (normalized.startsWith("combo/free")) return true;
   if (normalized.includes(":free")) return true;
-  return allowedFreePrefixes.some((prefix) => normalized.startsWith(prefix));
+  return false;
 }
 
 export const businessAgentRequestSchema = z.object({
