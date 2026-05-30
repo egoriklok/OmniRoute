@@ -12,6 +12,8 @@ import {
 import {
   deleteBusinessAgentTelegramSession,
   getBusinessAgentTelegramSession,
+  isBusinessAgentTelegramUpdateProcessed,
+  markBusinessAgentTelegramUpdateProcessed,
   saveBusinessAgentTelegramSession,
 } from "@/lib/businessAgent/sessionStore";
 import { transcribeTelegramBusinessVoice } from "@/lib/businessAgent/voiceTranscription";
@@ -30,6 +32,10 @@ function getBotToken() {
 
 function getWebhookSecret() {
   return process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET?.trim() || "";
+}
+
+function normalizeTelegramUpdateId(updateId: unknown) {
+  return typeof updateId === "number" && Number.isSafeInteger(updateId) ? updateId : null;
 }
 
 function validateTelegramSecret(
@@ -125,6 +131,19 @@ export async function POST(request: Request) {
   let extracted = extractTelegramBusinessAgentInput(update);
   if (!extracted) return NextResponse.json({ success: true, ignored: true });
 
+  const updateId = normalizeTelegramUpdateId(update.update_id);
+  let existing =
+    extracted.input.command === "/reset" ? null : getBusinessAgentTelegramSession(extracted.chatId);
+  if (isBusinessAgentTelegramUpdateProcessed(existing, updateId)) {
+    return NextResponse.json({
+      success: true,
+      chatId: extracted.chatId,
+      duplicate: true,
+      status: existing?.status,
+      shouldGenerate: false,
+    });
+  }
+
   if (extracted.needsVoiceTranscription && extracted.voiceFileId) {
     try {
       const voiceTranscript = await transcribeTelegramBusinessVoice({
@@ -146,10 +165,9 @@ export async function POST(request: Request) {
 
   if (extracted.input.command === "/reset") {
     deleteBusinessAgentTelegramSession(extracted.chatId);
+    existing = null;
   }
 
-  const existing =
-    extracted.input.command === "/reset" ? null : getBusinessAgentTelegramSession(extracted.chatId);
   const session =
     existing ||
     createBusinessAgentInterviewSession({
@@ -159,13 +177,14 @@ export async function POST(request: Request) {
 
   const turn = applyBusinessAgentInterviewTurn(session, extracted.input);
   await sendTelegramMessage(extracted.chatId, turn.reply);
+  const processedSession = markBusinessAgentTelegramUpdateProcessed(turn.session, updateId);
 
   if (turn.shouldGenerate) {
     const response = buildLocalTelegramBusinessResponse(turn.request);
     await sendTelegramDocument(extracted.chatId, response);
-    saveBusinessAgentTelegramSession({ ...turn.session, status: "complete" });
+    saveBusinessAgentTelegramSession({ ...processedSession, status: "complete" });
   } else {
-    saveBusinessAgentTelegramSession(turn.session);
+    saveBusinessAgentTelegramSession(processedSession);
   }
 
   return NextResponse.json({

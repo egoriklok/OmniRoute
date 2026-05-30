@@ -289,6 +289,7 @@ test("business agent telegram webhook starts an interview without paid providers
           "x-telegram-bot-api-secret-token": "secret",
         },
         body: JSON.stringify({
+          update_id: 1001,
           message: {
             chat: { id: 777 },
             date: 1780135200,
@@ -309,11 +310,83 @@ test("business agent telegram webhook starts an interview without paid providers
     assert.equal(body.shouldGenerate, false);
     assert.equal(fetchCalls.length, 1);
     assert.match(fetchCalls[0], /sendMessage/);
+    assert.deepEqual(
+      sessionStore.getBusinessAgentTelegramSession("777")?.processedTelegramUpdateIds,
+      [1001]
+    );
   } finally {
     globalThis.fetch = originalFetch;
     restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
     restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
     sessionStore.deleteBusinessAgentTelegramSession("777");
+  }
+});
+
+test("business agent telegram webhook ignores retried update ids", async () => {
+  const originalFetch = globalThis.fetch;
+  process.env.TELEGRAM_BOT_TOKEN = "test-token";
+  process.env.BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET = "secret";
+
+  const fetchCalls: string[] = [];
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    fetchCalls.push(String(url));
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const requestBody = {
+    update_id: 1002,
+    message: {
+      chat: { id: 780 },
+      date: 1780135200,
+      text: "/start",
+    },
+  };
+
+  try {
+    const first = await telegramRoute.POST(
+      new Request("http://localhost/api/business-agent/telegram", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-telegram-bot-api-secret-token": "secret",
+        },
+        body: JSON.stringify(requestBody),
+      })
+    );
+    const duplicate = await telegramRoute.POST(
+      new Request("http://localhost/api/business-agent/telegram", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-telegram-bot-api-secret-token": "secret",
+        },
+        body: JSON.stringify(requestBody),
+      })
+    );
+    const duplicateBody = (await duplicate.json()) as {
+      success?: boolean;
+      duplicate?: boolean;
+      shouldGenerate?: boolean;
+    };
+
+    assert.equal(first.status, 200);
+    assert.equal(duplicate.status, 200);
+    assert.equal(duplicateBody.success, true);
+    assert.equal(duplicateBody.duplicate, true);
+    assert.equal(duplicateBody.shouldGenerate, false);
+    assert.equal(fetchCalls.length, 1);
+    assert.deepEqual(
+      sessionStore.getBusinessAgentTelegramSession("780")?.processedTelegramUpdateIds,
+      [1002]
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv("TELEGRAM_BOT_TOKEN", originalTelegramBotToken);
+    restoreEnv("BUSINESS_AGENT_TELEGRAM_WEBHOOK_SECRET", originalTelegramWebhookSecret);
+    sessionStore.deleteBusinessAgentTelegramSession("780");
   }
 });
 

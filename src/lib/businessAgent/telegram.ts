@@ -2,6 +2,7 @@ import { type BusinessAgentInterviewInput } from "./interview";
 import { type BusinessAgentResponse } from "./schema";
 
 export type TelegramBusinessAgentUpdate = {
+  update_id?: number;
   message?: {
     date?: number;
     text?: string;

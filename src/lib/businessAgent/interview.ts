@@ -28,6 +28,7 @@ export type BusinessAgentInterviewSession = {
   createdAt: string;
   updatedAt: string;
   lastQuestionId?: BusinessAgentQuestionId;
+  processedTelegramUpdateIds?: number[];
 };
 
 export type BusinessAgentInterviewInput = {

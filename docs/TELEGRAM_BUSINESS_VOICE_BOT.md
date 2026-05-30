@@ -191,9 +191,11 @@ parsing, voice file detection, and signaling when local STT is needed.
 6. Otherwise OmniRoute uses `BUSINESS_AGENT_STT_MODEL`, defaulting to local/free `qwen/qwen3-asr`.
 7. Sessions are persisted in SQLite `key_value` under `businessAgentTelegramSessions` after the
    Telegram reply succeeds.
-8. The interview state machine asks one missing question at a time.
-9. `/generate` builds the Business Agent local fallback report and filled markdown strategy file.
-10. The route sends the reply text and then sends the strategy file back as a Telegram document.
+8. Processed Telegram `update_id` values are stored with the session so retried updates do not
+   advance the interview twice.
+9. The interview state machine asks one missing question at a time.
+10. `/generate` builds the Business Agent local fallback report and filled markdown strategy file.
+11. The route sends the reply text and then sends the strategy file back as a Telegram document.
 
 ## Acceptance Criteria
 
