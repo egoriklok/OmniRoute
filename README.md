@@ -1361,20 +1361,22 @@ See the [Proxy Guide](docs/PROXY_GUIDE.md) for setup instructions.
 
 ### 🧠 Features & Architecture
 
-| Document                                                         | Description                                                                   |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [Architecture](docs/ARCHITECTURE.md)                             | System architecture, data flow, and internals                                 |
-| [Compression Guide](docs/COMPRESSION_GUIDE.md)                   | 7-option pipeline: off / lite / standard / aggressive / ultra / RTK / stacked |
-| [RTK Compression](docs/RTK_COMPRESSION.md)                       | Command-output compression, filters, trust, verify, raw-output recovery       |
-| [Compression Engines](docs/COMPRESSION_ENGINES.md)               | Caveman, RTK, stacked pipelines, dashboard/API/MCP surfaces                   |
-| [Compression Rules Format](docs/COMPRESSION_RULES_FORMAT.md)     | JSON rule-pack schemas for Caveman and RTK filters                            |
-| [Compression Language Packs](docs/COMPRESSION_LANGUAGE_PACKS.md) | Language detection and Caveman rule-pack authoring                            |
-| [Resilience Guide](docs/RESILIENCE_GUIDE.md)                     | Circuit breakers, cooldowns, queue, anti-thundering herd, TLS spoofing        |
-| [Auto-Combo Engine](docs/AUTO-COMBO.md)                          | 6-factor scoring, mode packs, self-healing                                    |
-| [Proxy Guide](docs/PROXY_GUIDE.md)                               | 3-level proxy system, 1proxy marketplace, registry CRUD                       |
-| [Free Tiers](docs/FREE_TIERS.md)                                 | 25+ free API providers consolidated directory                                 |
-| [Features Gallery](docs/FEATURES.md)                             | Visual dashboard tour with screenshots                                        |
-| [Codebase Documentation](docs/CODEBASE_DOCUMENTATION.md)         | Beginner-friendly codebase walkthrough                                        |
+| Document                                                           | Description                                                                   |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| [Architecture](docs/ARCHITECTURE.md)                               | System architecture, data flow, and internals                                 |
+| [Compression Guide](docs/COMPRESSION_GUIDE.md)                     | 7-option pipeline: off / lite / standard / aggressive / ultra / RTK / stacked |
+| [RTK Compression](docs/RTK_COMPRESSION.md)                         | Command-output compression, filters, trust, verify, raw-output recovery       |
+| [Compression Engines](docs/COMPRESSION_ENGINES.md)                 | Caveman, RTK, stacked pipelines, dashboard/API/MCP surfaces                   |
+| [Compression Rules Format](docs/COMPRESSION_RULES_FORMAT.md)       | JSON rule-pack schemas for Caveman and RTK filters                            |
+| [Compression Language Packs](docs/COMPRESSION_LANGUAGE_PACKS.md)   | Language detection and Caveman rule-pack authoring                            |
+| [Resilience Guide](docs/RESILIENCE_GUIDE.md)                       | Circuit breakers, cooldowns, queue, anti-thundering herd, TLS spoofing        |
+| [Auto-Combo Engine](docs/AUTO-COMBO.md)                            | 6-factor scoring, mode packs, self-healing                                    |
+| [Proxy Guide](docs/PROXY_GUIDE.md)                                 | 3-level proxy system, 1proxy marketplace, registry CRUD                       |
+| [Free Tiers](docs/FREE_TIERS.md)                                   | 25+ free API providers consolidated directory                                 |
+| [Business Agent](docs/BUSINESS_AGENT.md)                           | Free startup consultation workflow with Kiro/free-model fallback              |
+| [Telegram Business Voice Bot](docs/TELEGRAM_BUSINESS_VOICE_BOT.md) | Voice-interview adapter design for filled startup strategy files              |
+| [Features Gallery](docs/FEATURES.md)                               | Visual dashboard tour with screenshots                                        |
+| [Codebase Documentation](docs/CODEBASE_DOCUMENTATION.md)           | Beginner-friendly codebase walkthrough                                        |
 
 ### 🤖 Protocols & APIs
 
@@ -1519,4 +1521,3 @@ MIT License - see [LICENSE](LICENSE) for details.
   <sub><a href="https://omniroute.online">omniroute.online</a></sub>
 </div>
 <!-- GitHub Discussions enabled for community Q&A -->
-

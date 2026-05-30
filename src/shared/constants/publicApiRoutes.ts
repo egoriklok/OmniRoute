@@ -1,3 +1,5 @@
+const PUBLIC_API_EXACT_ROUTES = ["/api/business-agent/telegram"];
+
 const PUBLIC_API_ROUTE_PREFIXES = [
   "/api/auth/login",
   "/api/auth/logout",
@@ -17,6 +19,10 @@ const PUBLIC_READONLY_API_ROUTE_PREFIXES = [
 const PUBLIC_READONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export function isPublicApiRoute(pathname: string, method = "GET"): boolean {
+  if (PUBLIC_API_EXACT_ROUTES.includes(pathname)) {
+    return true;
+  }
+
   if (PUBLIC_API_ROUTE_PREFIXES.some((route) => pathname.startsWith(route))) {
     return true;
   }
@@ -28,4 +34,9 @@ export function isPublicApiRoute(pathname: string, method = "GET"): boolean {
   return PUBLIC_READONLY_API_ROUTE_PREFIXES.some((route) => pathname.startsWith(route));
 }
 
-export { PUBLIC_API_ROUTE_PREFIXES, PUBLIC_READONLY_API_ROUTE_PREFIXES, PUBLIC_READONLY_METHODS };
+export {
+  PUBLIC_API_EXACT_ROUTES,
+  PUBLIC_API_ROUTE_PREFIXES,
+  PUBLIC_READONLY_API_ROUTE_PREFIXES,
+  PUBLIC_READONLY_METHODS,
+};

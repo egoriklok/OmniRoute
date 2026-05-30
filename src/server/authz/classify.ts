@@ -1,4 +1,5 @@
 import {
+  PUBLIC_API_EXACT_ROUTES,
   PUBLIC_API_ROUTE_PREFIXES,
   PUBLIC_READONLY_API_ROUTE_PREFIXES,
   PUBLIC_READONLY_METHODS,
@@ -108,6 +109,7 @@ function matchesReadonlyPublic(path: string, method: string): boolean {
 function isClassifiedAsPublic(path: string, method: string): boolean {
   const isV1ApiPrefix = (p: string) =>
     p === "/api/v1" || p === "/api/v1/" || p.startsWith("/api/v1/");
+  if (PUBLIC_API_EXACT_ROUTES.includes(path)) return true;
   const filtered = PUBLIC_API_ROUTE_PREFIXES.filter((p) => p !== "/api/v1/");
   if (filtered.some((prefix) => path.startsWith(prefix)) && !isV1ApiPrefix(path)) {
     return true;

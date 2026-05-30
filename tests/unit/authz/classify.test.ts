@@ -135,6 +135,24 @@ const cases: Case[] = [
     expectedClass: "PUBLIC",
   },
   {
+    name: "/api/business-agent/telegram webhook is PUBLIC",
+    path: "/api/business-agent/telegram",
+    method: "POST",
+    expectedClass: "PUBLIC",
+  },
+  {
+    name: "/api/business-agent remains MANAGEMENT",
+    path: "/api/business-agent",
+    method: "POST",
+    expectedClass: "MANAGEMENT",
+  },
+  {
+    name: "/api/business-agent/telegram-extra remains MANAGEMENT",
+    path: "/api/business-agent/telegram-extra",
+    method: "POST",
+    expectedClass: "MANAGEMENT",
+  },
+  {
     name: "/api/settings/require-login GET is PUBLIC readonly",
     path: "/api/settings/require-login",
     method: "GET",
